@@ -1,0 +1,204 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CUSTOMER
+  STAFF
+  ADMIN
+}
+
+enum FulfillmentMethod {
+  PICKUP
+  DELIVERY
+}
+
+enum PaymentMethod {
+  PAY_ON_PICKUP
+  CASH_ON_DELIVERY
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String?  @unique
+  firstName String?
+  lastName  String?
+  phone     String?
+  role      UserRole @default(CUSTOMER)
+
+  addresses Address[]
+  orders    Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Address {
+  id          String  @id @default(cuid())
+  label       String?
+  recipient   String
+  phone       String
+  addressLine String
+  city        String
+  region      String?
+  directions  String?
+  isDefault   Boolean @default(false)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Category {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+model Product {
+  id           String    @id @default(cuid())
+  name         String
+  slug         String    @unique
+  description  String?
+  pricePesewas Int
+
+  imageUrl     String
+  imagePublicId String?
+
+  isAvailable  Boolean   @default(true)
+  isFeatured   Boolean   @default(false)
+  sortOrder    Int       @default(0)
+  archivedAt   DateTime?
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId, isAvailable])
+  @@index([isFeatured, sortOrder])
+  @@index([archivedAt])
+}
+
+model Order {
+  id          String @id @default(cuid())
+  orderNumber String @unique
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  customerName  String
+  customerEmail String?
+  customerPhone String
+
+  fulfillmentMethod FulfillmentMethod
+  paymentMethod     PaymentMethod
+  paymentStatus     PaymentStatus     @default(PENDING)
+  status            OrderStatus       @default(PLACED)
+
+  deliveryAddressLine String?
+  deliveryCity        String?
+  deliveryRegion      String?
+  deliveryDirections  String?
+
+  subtotalPesewas    Int
+  deliveryFeePesewas Int @default(0)
+  totalPesewas       Int
+
+  customerNote String?
+
+  items OrderItem[]
+
+  confirmedAt DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+
+  paidAt     DateTime?
+  refundedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  idempotencyKey String? @unique
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@index([customerPhone])
+}
+
+model OrderItem {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  productNameSnapshot String
+  imageUrlSnapshot    String?
+  unitPricePesewas    Int
+  quantity            Int
+  lineTotalPesewas    Int
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model RestaurantSettings {
+  id String @id @default("default")
+
+  businessName String @default("Confirm Bakery")
+  currency     String @default("GHS")
+
+  pickupEnabled   Boolean @default(true)
+  deliveryEnabled Boolean @default(true)
+
+  flatDeliveryFeePesewas Int @default(0)
+  minimumOrderPesewas    Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
