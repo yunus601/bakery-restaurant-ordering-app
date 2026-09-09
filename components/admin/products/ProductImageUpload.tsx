@@ -4,6 +4,7 @@ import { ImagePlus, RefreshCw, Trash2 } from "lucide-react";
 import { CldUploadWidget } from "next-cloudinary";
 import { useState } from "react";
 
+import { cleanupProductImageAction } from "@/app/admin/products/action";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +13,7 @@ const uploadFolder = "confirm-bakery/products";
 type ProductImageUploadProps = {
   defaultImageUrl?: string;
   defaultImagePublicId?: string | null;
+  onPublicIdChange: (publicId: string) => void;
   error?: string;
 };
 
@@ -23,21 +25,48 @@ type UploadedImage = {
 export function ProductImageUpload({
   defaultImageUrl = "",
   defaultImagePublicId = null,
+  onPublicIdChange,
   error,
 }: ProductImageUploadProps) {
   const [imageUrl, setImageUrl] = useState(defaultImageUrl);
   const [imagePublicId, setImagePublicId] = useState(
     defaultImagePublicId ?? "",
   );
+  const [cleanupError, setCleanupError] = useState<string>();
+  const persistedPublicId = defaultImagePublicId ?? "";
 
-  function removeImage() {
+  async function removeImage() {
+    const removedPublicId = imagePublicId;
+
     setImageUrl("");
     setImagePublicId("");
+    onPublicIdChange("");
+    setCleanupError(undefined);
+
+    if (removedPublicId && removedPublicId !== persistedPublicId) {
+      const result = await cleanupProductImageAction(removedPublicId);
+
+      if (!result.success) setCleanupError(result.message);
+    }
   }
 
-  function saveUpload(upload: UploadedImage) {
+  async function saveUpload(upload: UploadedImage) {
+    const replacedPublicId = imagePublicId;
+
     setImageUrl(upload.secure_url);
     setImagePublicId(upload.public_id);
+    onPublicIdChange(upload.public_id);
+    setCleanupError(undefined);
+
+    if (
+      replacedPublicId &&
+      replacedPublicId !== persistedPublicId &&
+      replacedPublicId !== upload.public_id
+    ) {
+      const result = await cleanupProductImageAction(replacedPublicId);
+
+      if (!result.success) setCleanupError(result.message);
+    }
   }
 
   return (
@@ -102,6 +131,11 @@ export function ProductImageUpload({
           {error}
         </span>
       )}
+      {cleanupError && (
+        <p aria-live="polite" className="mt-2 text-sm text-red-700">
+          {cleanupError}
+        </p>
+      )}
     </div>
   );
 }
@@ -112,8 +146,8 @@ function UploadControls({
   onRemove,
 }: {
   hasImage: boolean;
-  onUpload: (upload: UploadedImage) => void;
-  onRemove: () => void;
+  onUpload: (upload: UploadedImage) => Promise<void>;
+  onRemove: () => Promise<void>;
 }) {
   return (
     <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
@@ -132,7 +166,7 @@ function UploadControls({
 
           const upload = result.info as UploadedImage;
 
-          if (upload.secure_url && upload.public_id) onUpload(upload);
+          if (upload.secure_url && upload.public_id) void onUpload(upload);
         }}
       >
         {({ open }) => (
@@ -159,7 +193,7 @@ function UploadControls({
         <Button
           type="button"
           variant="outline"
-          onClick={onRemove}
+          onClick={() => void onRemove()}
           className="cursor-pointer text-red-700 hover:border-red-200 hover:bg-red-50 hover:text-red-800"
         >
           <Trash2 className="size-4" aria-hidden="true" />

@@ -1,11 +1,12 @@
 "use client";
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { Show, SignInButton, SignUpButton } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
 import { MobileNavigation } from "./MobileNavigation";
 import { CartButton } from "./CartButton";
 import { CartSheet } from "./CartSheet";
 import { usePathname } from "next/navigation";
+import { AccountUserButton } from "./AccountUserButton";
 
 const navigation = [
   { label: "Home", href: "/" },
@@ -17,7 +18,7 @@ const navigation = [
 export function SiteHeader() {
   const pathname = usePathname();
   return (
-    <header className="absolute inset-x-0 top-0 z-20">
+    <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 bg-foreground/95 shadow-sm backdrop-blur-md">
       <div className="mx-auto flex h-24 max-w-7xl items-center justify-between px-6 lg:px-10">
         <Link
           href="/"
@@ -81,7 +82,7 @@ export function SiteHeader() {
               </SignUpButton>
             </Show>
             <Show when="signed-in">
-              <UserButton />
+              <AccountUserButton />
             </Show>
           </div>
 

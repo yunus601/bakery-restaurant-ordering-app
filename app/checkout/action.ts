@@ -1,6 +1,10 @@
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
+
+import { requireUser } from "@/lib/auth/require-user";
 import { OrderError } from "@/lib/errors/order";
+import { prisma } from "@/lib/prisma";
 import { createOrder } from "@/lib/services/order";
 import { checkoutSchema } from "@/lib/validation/order";
 
@@ -14,6 +18,7 @@ export type CheckoutActionState = {
     status: string;
     totalPesewas: number;
   };
+  linkedToAccount?: boolean;
 };
 
 function parseItems(value: FormDataEntryValue | null): unknown {
@@ -58,12 +63,31 @@ export async function createOrderAction(
     };
   }
   try {
-    const order = await createOrder(result.data);
+    const { userId: clerkUserId } = await auth();
+    const user = clerkUserId ? await requireUser() : null;
+    const order = await createOrder(result.data, user?.id ?? null);
+
+    if (user && !user.phone) {
+      try {
+        await prisma.user.updateMany({
+          where: {
+            id: user.id,
+            phone: null,
+          },
+          data: {
+            phone: result.data.customerPhone,
+          },
+        });
+      } catch (error) {
+        console.error("Customer phone update failed:", error);
+      }
+    }
 
     return {
       success: true,
       message: "Your order has been placed successfully.",
       order,
+      linkedToAccount: Boolean(user),
     };
   } catch (error) {
     if (error instanceof OrderError) {

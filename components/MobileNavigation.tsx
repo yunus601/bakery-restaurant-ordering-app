@@ -1,10 +1,12 @@
 "use client";
 
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { Show, SignInButton, SignUpButton } from "@clerk/nextjs";
+import { ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
+import { AccountUserButton } from "./AccountUserButton";
 import {
   Sheet,
   SheetContent,
@@ -90,9 +92,19 @@ export function MobileNavigation({ items }: MobileNavigationProps) {
                   </div>
                 </Show>
                 <Show when="signed-in">
-                  <div className="flex items-center gap-3 font-navigation font-semibold">
-                    <UserButton />
-                    <span>My account</span>
+                  <div className="space-y-4">
+                    <Link
+                      href="/account/orders"
+                      onClick={() => setIsOpen(false)}
+                      className="flex cursor-pointer items-center gap-3 rounded-xl border border-brand-accent/30 px-4 py-3 font-navigation font-semibold text-brand-accent transition-colors hover:bg-brand-accent hover:text-foreground"
+                    >
+                      <ClipboardList className="size-5" aria-hidden="true" />
+                      My orders
+                    </Link>
+                    <div className="flex items-center gap-3 font-navigation font-semibold">
+                      <AccountUserButton />
+                      <span>My account</span>
+                    </div>
                   </div>
                 </Show>
               </>

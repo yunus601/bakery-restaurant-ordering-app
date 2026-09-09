@@ -4,7 +4,10 @@ import prisma from "@/lib/prisma";
 import type { CheckoutInput } from "@/lib/validation/order";
 import { OrderError } from "../errors/order";
 
-export async function createOrder(input: CheckoutInput) {
+export async function createOrder(
+  input: CheckoutInput,
+  userId: string | null = null,
+) {
   const productIds = input.items.map((item) => item.productId);
   const uniqueProductIds = [...new Set(productIds)];
 
@@ -130,6 +133,7 @@ export async function createOrder(input: CheckoutInput) {
         data: {
           idempotencyKey: input.idempotencyKey,
           orderNumber,
+          userId,
 
           customerName: input.customerName,
           customerPhone: input.customerPhone,

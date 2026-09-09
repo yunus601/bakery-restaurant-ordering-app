@@ -5,6 +5,10 @@ import prisma from "@/lib/prisma";
 import { productSchema, type ProductInput } from "@/lib/validation/product";
 import { revalidatePath } from "next/cache";
 import z from "zod";
+import {
+  deleteProductImage,
+  isProductImagePublicId,
+} from "@/lib/cloudinary/cloudinary";
 
 export type ProductActionState = {
   success: boolean;
@@ -20,6 +24,10 @@ export type ArchiveProductState = {
   success: boolean;
   message?: string;
 };
+
+const cleanupProductImageSchema = z.object({
+  publicId: z.string().trim().min(1),
+});
 
 export async function createProductAction(
   _previousState: ProductActionState,
@@ -252,6 +260,19 @@ export async function updateProductAction(
       };
     }
 
+    const previousImagePublicId = existingProduct.imagePublicId;
+
+    if (
+      previousImagePublicId &&
+      previousImagePublicId !== product.imagePublicId
+    ) {
+      try {
+        await deleteProductImage(previousImagePublicId);
+      } catch (error) {
+        console.error("Old product image cleanup failed:", error);
+      }
+    }
+
     revalidatePath("/");
     revalidatePath("/menu");
     revalidatePath("/admin/products");
@@ -267,6 +288,50 @@ export async function updateProductAction(
     return {
       success: false,
       message: "We could not update the product. Please try again.",
+    };
+  }
+}
+
+export async function cleanupProductImageAction(publicId: string) {
+  await requireAdmin();
+
+  const result = cleanupProductImageSchema.safeParse({ publicId });
+
+  if (!result.success || !isProductImagePublicId(result.data.publicId)) {
+    return {
+      success: false,
+      message: "Invalid product image.",
+    };
+  }
+
+  const productUsingImage = await prisma.product.findFirst({
+    where: {
+      imagePublicId: result.data.publicId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (productUsingImage) {
+    return {
+      success: false,
+      message: "This image is currently assigned to a product.",
+    };
+  }
+
+  try {
+    await deleteProductImage(result.data.publicId);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error("Unused product image cleanup failed:", error);
+
+    return {
+      success: false,
+      message: "The unused image could not be removed.",
     };
   }
 }
@@ -413,7 +478,10 @@ function normalizeOptionalString(value: FormDataEntryValue | null) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function isValidCloudinaryImage(imageUrl: string, imagePublicId: string | null) {
+function isValidCloudinaryImage(
+  imageUrl: string,
+  imagePublicId: string | null,
+) {
   if (!imagePublicId?.startsWith("confirm-bakery/products/")) return false;
 
   try {

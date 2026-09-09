@@ -2,9 +2,11 @@
 
 import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useState } from "react";
 
 import {
+  cleanupProductImageAction,
   createProductAction,
   type ProductActionState,
   updateProductAction,
@@ -38,10 +40,40 @@ export function ProductForm({
   product,
 }: ProductFormProps) {
   const isEditing = mode === "edit";
+  const router = useRouter();
+  const persistedImagePublicId = product?.imagePublicId ?? "";
+  const [currentImagePublicId, setCurrentImagePublicId] = useState(
+    persistedImagePublicId,
+  );
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string>();
   const [state, formAction, pending] = useActionState(
     isEditing ? updateProductAction : createProductAction,
     initialState,
   );
+
+  async function cancelForm() {
+    setCancelling(true);
+    setCancelError(undefined);
+
+    const hasTemporaryImage =
+      currentImagePublicId &&
+      currentImagePublicId !== persistedImagePublicId;
+
+    if (hasTemporaryImage) {
+      const result = await cleanupProductImageAction(currentImagePublicId);
+
+      if (!result.success) {
+        setCancelError(
+          result.message ?? "The temporary image could not be removed.",
+        );
+        setCancelling(false);
+        return;
+      }
+    }
+
+    router.push("/admin/products");
+  }
 
   if (state.success) {
     return (
@@ -118,6 +150,7 @@ export function ProductForm({
           <ProductImageUpload
             defaultImageUrl={product?.imageUrl}
             defaultImagePublicId={product?.imagePublicId}
+            onPublicIdChange={setCurrentImagePublicId}
             error={firstError(state.errors?.imageUrl)}
           />
           <label className="sm:col-span-2">
@@ -178,17 +211,28 @@ export function ProductForm({
           {state.message}
         </p>
       )}
+      {cancelError && (
+        <p
+          aria-live="polite"
+          className="rounded-xl bg-red-50 p-3 text-sm text-red-700"
+        >
+          {cancelError}
+        </p>
+      )}
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <Link
-          href="/admin/products"
-          className="grid h-11 place-items-center rounded-xl border px-5 text-sm font-semibold transition hover:border-brand hover:text-brand"
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending || cancelling}
+          onClick={() => void cancelForm()}
+          className="h-11 cursor-pointer px-5 font-semibold hover:border-brand hover:text-brand"
         >
-          Cancel
-        </Link>
+          {cancelling ? "Cancelling…" : "Cancel"}
+        </Button>
         <Button
           type="submit"
-          disabled={pending || categories.length === 0}
+          disabled={pending || cancelling || categories.length === 0}
           className="h-11 bg-brand px-6 font-navigation text-white hover:bg-brand/90"
         >
           {pending

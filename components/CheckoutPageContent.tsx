@@ -24,12 +24,20 @@ const initialCheckoutState: CheckoutActionState = {
 const fieldClassName =
   "mt-2 h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15";
 
+type CheckoutCustomer = {
+  name: string;
+  email: string;
+  phone: string;
+};
+
 type CheckoutPageContentProps = {
   idempotencyKey: string;
+  customer: CheckoutCustomer | null;
 };
 
 export function CheckoutPageContent({
   idempotencyKey,
+  customer,
 }: CheckoutPageContentProps) {
   const hasHydrated = useHasHydrated();
   const items = useCartStore((state) => state.items);
@@ -105,11 +113,29 @@ export function CheckoutPageContent({
         </dl>
 
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          {state.linkedToAccount && (
+            <Link
+              href={`/account/orders/${state.order.id}`}
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "bg-brand font-navigation text-surface hover:bg-brand/90",
+              )}
+            >
+              View order
+            </Link>
+          )}
           <Link
             href="/menu"
             className={cn(
-              buttonVariants({ size: "lg" }),
-              "bg-brand font-navigation text-surface hover:bg-brand/90",
+              buttonVariants({
+                variant: state.linkedToAccount ? "outline" : "default",
+                size: "lg",
+              }),
+              cn(
+                "font-navigation",
+                !state.linkedToAccount &&
+                  "bg-brand text-surface hover:bg-brand/90",
+              ),
             )}
           >
             Continue shopping
@@ -189,6 +215,7 @@ export function CheckoutPageContent({
                 Full name
                 <input
                   name="customerName"
+                  defaultValue={customer?.name ?? ""}
                   autoComplete="name"
                   required
                   className={fieldClassName}
@@ -202,6 +229,7 @@ export function CheckoutPageContent({
                 Phone number
                 <input
                   name="customerPhone"
+                  defaultValue={customer?.phone ?? ""}
                   type="tel"
                   autoComplete="tel"
                   inputMode="tel"
@@ -218,6 +246,7 @@ export function CheckoutPageContent({
                 <span className="text-bakery-muted">(optional)</span>
                 <input
                   name="customerEmail"
+                  defaultValue={customer?.email ?? ""}
                   type="email"
                   autoComplete="email"
                   className={fieldClassName}
