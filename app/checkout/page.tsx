@@ -8,6 +8,7 @@ import { SiteHeader } from "@/components/Header";
 import { auth } from "@clerk/nextjs/server";
 
 import { requireUser } from "@/lib/auth/require-user";
+import { getCustomerAddresses } from "@/lib/queries/customer-addresses";
 
 export const metadata: Metadata = {
   title: "Checkout | Confirm Bakery",
@@ -29,6 +30,8 @@ export default async function CheckoutPage() {
       }
     : null;
 
+  const addresses = await getCustomerAddresses();
+
   return (
     <main className="min-h-screen bg-background">
       <div className="relative h-24 bg-foreground">
@@ -39,6 +42,7 @@ export default async function CheckoutPage() {
         <CheckoutPageContent
           idempotencyKey={idempotencyKey}
           customer={customer}
+          addresses={addresses}
         />
       </section>
 

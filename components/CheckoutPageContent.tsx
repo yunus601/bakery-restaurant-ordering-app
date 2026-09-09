@@ -33,11 +33,13 @@ type CheckoutCustomer = {
 type CheckoutPageContentProps = {
   idempotencyKey: string;
   customer: CheckoutCustomer | null;
+  addresses: string | string[];
 };
 
 export function CheckoutPageContent({
   idempotencyKey,
   customer,
+  addresses,
 }: CheckoutPageContentProps) {
   const hasHydrated = useHasHydrated();
   const items = useCartStore((state) => state.items);
