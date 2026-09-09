@@ -30,7 +30,31 @@ export default async function CheckoutPage() {
       }
     : null;
 
-  const addresses = await getCustomerAddresses();
+  const addresses = user
+    ? (await getCustomerAddresses()).map(
+        ({
+          id,
+          label,
+          recipient,
+          phone,
+          addressLine,
+          city,
+          region,
+          directions,
+          isDefault,
+        }) => ({
+          id,
+          label,
+          recipient,
+          phone,
+          addressLine,
+          city,
+          region,
+          directions,
+          isDefault,
+        }),
+      )
+    : [];
 
   return (
     <main className="min-h-screen bg-background">

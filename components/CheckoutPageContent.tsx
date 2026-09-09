@@ -30,10 +30,22 @@ type CheckoutCustomer = {
   phone: string;
 };
 
+export type CheckoutAddress = {
+  id: string;
+  label: string | null;
+  recipient: string;
+  phone: string;
+  addressLine: string;
+  city: string;
+  region: string | null;
+  directions: string | null;
+  isDefault: boolean;
+};
+
 type CheckoutPageContentProps = {
   idempotencyKey: string;
   customer: CheckoutCustomer | null;
-  addresses: string | string[];
+  addresses: CheckoutAddress[];
 };
 
 export function CheckoutPageContent({
@@ -46,6 +58,33 @@ export function CheckoutPageContent({
   const clearCart = useCartStore((state) => state.clearCart);
   const [fulfillmentMethod, setFulfillmentMethod] =
     useState<FulfillmentMethod>("PICKUP");
+  const defaultAddress =
+    addresses.find((address) => address.isDefault) ?? addresses[0] ?? null;
+  const [selectedAddressId, setSelectedAddressId] = useState("");
+  const [customerName, setCustomerName] = useState(customer?.name ?? "");
+  const [customerPhone, setCustomerPhone] = useState(customer?.phone ?? "");
+  const [deliveryAddressLine, setDeliveryAddressLine] = useState("");
+  const [deliveryCity, setDeliveryCity] = useState("");
+  const [deliveryRegion, setDeliveryRegion] = useState("");
+  const [deliveryDirections, setDeliveryDirections] = useState("");
+
+  function applySavedAddress(address: CheckoutAddress) {
+    setSelectedAddressId(address.id);
+    setCustomerName(address.recipient);
+    setCustomerPhone(address.phone);
+    setDeliveryAddressLine(address.addressLine);
+    setDeliveryCity(address.city);
+    setDeliveryRegion(address.region ?? "");
+    setDeliveryDirections(address.directions ?? "");
+  }
+
+  function chooseDelivery() {
+    setFulfillmentMethod("DELIVERY");
+
+    if (defaultAddress && !deliveryAddressLine) {
+      applySavedAddress(defaultAddress);
+    }
+  }
 
   const [state, formAction, pending] = useActionState(
     createOrderAction,
@@ -217,7 +256,8 @@ export function CheckoutPageContent({
                 Full name
                 <input
                   name="customerName"
-                  defaultValue={customer?.name ?? ""}
+                  value={customerName}
+                  onChange={(event) => setCustomerName(event.target.value)}
                   autoComplete="name"
                   required
                   className={fieldClassName}
@@ -231,7 +271,8 @@ export function CheckoutPageContent({
                 Phone number
                 <input
                   name="customerPhone"
-                  defaultValue={customer?.phone ?? ""}
+                  value={customerPhone}
+                  onChange={(event) => setCustomerPhone(event.target.value)}
                   type="tel"
                   autoComplete="tel"
                   inputMode="tel"
@@ -279,17 +320,74 @@ export function CheckoutPageContent({
                 title="Delivery"
                 description="We will bring your order to you."
                 checked={fulfillmentMethod === "DELIVERY"}
-                onChange={() => setFulfillmentMethod("DELIVERY")}
+                onChange={chooseDelivery}
                 icon={<MapPin className="size-5" />}
               />
             </div>
 
             {fulfillmentMethod === "DELIVERY" && (
               <div className="mt-6 grid gap-5 border-t pt-6 sm:grid-cols-2">
+                {addresses.length > 0 && (
+                  <fieldset className="sm:col-span-2">
+                    <legend className="text-sm font-medium">
+                      Saved addresses
+                    </legend>
+                    <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                      {addresses.map((address) => (
+                        <label
+                          key={address.id}
+                          className={cn(
+                            "cursor-pointer rounded-xl border p-4 text-sm transition-colors",
+                            selectedAddressId === address.id
+                              ? "border-brand bg-brand-accent/10"
+                              : "border-border hover:border-brand/40",
+                          )}
+                        >
+                          <span className="flex items-start gap-3">
+                            <input
+                              type="radio"
+                              name="savedAddress"
+                              value={address.id}
+                              checked={selectedAddressId === address.id}
+                              onChange={() => applySavedAddress(address)}
+                              className="mt-1 accent-[var(--brand)]"
+                            />
+                            <span>
+                              <span className="block font-navigation font-semibold">
+                                {address.label || "Delivery address"}
+                                {address.isDefault && (
+                                  <span className="ml-2 rounded-full bg-brand/10 px-2 py-0.5 text-[0.65rem] text-brand">
+                                    Default
+                                  </span>
+                                )}
+                              </span>
+                              <span className="mt-1 block leading-5 text-bakery-muted">
+                                {address.addressLine}, {address.city}
+                                {address.region ? ", " + address.region : ""}
+                              </span>
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <Link
+                      href="/account/addresses"
+                      className="mt-3 inline-block text-sm font-semibold text-brand hover:underline"
+                    >
+                      Manage saved addresses
+                    </Link>
+                  </fieldset>
+                )}
+
                 <label className="text-sm font-medium sm:col-span-2">
                   Delivery address
                   <input
                     name="deliveryAddressLine"
+                    value={deliveryAddressLine}
+                    onChange={(event) => {
+                      setSelectedAddressId("");
+                      setDeliveryAddressLine(event.target.value);
+                    }}
                     autoComplete="street-address"
                     required
                     className={fieldClassName}
@@ -303,6 +401,11 @@ export function CheckoutPageContent({
                   City
                   <input
                     name="deliveryCity"
+                    value={deliveryCity}
+                    onChange={(event) => {
+                      setSelectedAddressId("");
+                      setDeliveryCity(event.target.value);
+                    }}
                     autoComplete="address-level2"
                     required
                     className={fieldClassName}
@@ -316,6 +419,11 @@ export function CheckoutPageContent({
                   Region <span className="text-bakery-muted">(optional)</span>
                   <input
                     name="deliveryRegion"
+                    value={deliveryRegion}
+                    onChange={(event) => {
+                      setSelectedAddressId("");
+                      setDeliveryRegion(event.target.value);
+                    }}
                     autoComplete="address-level1"
                     className={fieldClassName}
                     placeholder="Greater Accra"
@@ -327,6 +435,11 @@ export function CheckoutPageContent({
                   <span className="text-bakery-muted">(optional)</span>
                   <textarea
                     name="deliveryDirections"
+                    value={deliveryDirections}
+                    onChange={(event) => {
+                      setSelectedAddressId("");
+                      setDeliveryDirections(event.target.value);
+                    }}
                     rows={3}
                     className="mt-2 w-full resize-y rounded-lg border border-border bg-background px-3 py-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
                     placeholder="Landmarks or instructions that will help the rider"
