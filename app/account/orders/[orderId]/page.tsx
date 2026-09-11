@@ -14,6 +14,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { OrderStatusBadge } from "@/components/account/orders/OrderStatusBadge";
+import { CustomerOrderCancellation } from "@/components/account/orders/CustomerOrderCancellation";
 import { OrderStatusRefresh } from "@/components/account/orders/OrderStatusRefresh";
 import { Footer } from "@/components/Footer";
 import { SiteHeader } from "@/components/Header";
@@ -222,6 +223,35 @@ export default async function CustomerOrderPage({
                   </p>
                 </InfoCard>
               )}
+
+              {order.status === "PLACED" &&
+              storeSettings.customerCancellationEnabled ? (
+                <InfoCard icon={ReceiptText} title="Need to cancel?">
+                  <p className="mb-4 text-bakery-muted">
+                    You can cancel before the bakery starts preparing your order.
+                  </p>
+                  <CustomerOrderCancellation orderId={order.id} />
+                </InfoCard>
+              ) : order.status !== "CANCELLED" ? (
+                <InfoCard icon={Phone} title="Need to make a change?">
+                  <p className="leading-6 text-bakery-muted">
+                    Online cancellation is no longer available. Please contact the
+                    bakery for help with this order.
+                  </p>
+                  <a
+                    href={`tel:${storeSettings.contactPhone}`}
+                    className="mt-3 inline-block font-semibold text-brand hover:underline"
+                  >
+                    Call {storeSettings.contactPhone}
+                  </a>
+                </InfoCard>
+              ) : order.cancellationReason ? (
+                <InfoCard icon={ReceiptText} title="Cancellation">
+                  <p className="leading-6 text-bakery-muted">
+                    {order.cancellationReason}
+                  </p>
+                </InfoCard>
+              ) : null}
             </aside>
           </div>
 

@@ -1,6 +1,8 @@
 import "server-only";
 
 import prisma from "@/lib/prisma";
+import { enqueueOrderNotification } from "@/lib/notifications/outbox";
+import { NotificationType } from "@/lib/generated/prisma/client";
 import type { CheckoutInput } from "@/lib/validation/order";
 import { OrderError, type OrderItemIssue } from "../errors/order";
 
@@ -249,6 +251,12 @@ export async function createOrder(
           totalPesewas: true,
           userId: true,
         },
+      });
+      await enqueueOrderNotification(tx, {
+        orderId: order.id,
+        type: NotificationType.ORDER_RECEIVED,
+        recipientEmail: input.customerEmail,
+        recipientName: input.customerName,
       });
       return order;
       },

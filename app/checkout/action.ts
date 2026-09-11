@@ -6,7 +6,9 @@ import { requireUser } from "@/lib/auth/require-user";
 import { OrderError } from "@/lib/errors/order";
 import { prisma } from "@/lib/prisma";
 import { createOrder } from "@/lib/services/order";
+import { deliverPendingOrderNotifications } from "@/lib/notifications/outbox";
 import { checkoutSchema } from "@/lib/validation/order";
+import { RateLimitError, enforceRateLimit, requestRateLimitKey } from "@/lib/security/rate-limit";
 
 export type CheckoutActionState = {
   success: boolean;
@@ -38,6 +40,12 @@ export async function createOrderAction(
   _previousState: CheckoutActionState,
   formData: FormData,
 ): Promise<CheckoutActionState> {
+  try {
+    await enforceRateLimit(await requestRateLimitKey("checkout"), 5, 60_000);
+  } catch (error) {
+    if (error instanceof RateLimitError) return { success: false, message: "Too many checkout attempts. Please wait a minute and try again." };
+    throw error;
+  }
   const input = {
     customerName: formData.get("customerName"),
     customerPhone: formData.get("customerPhone"),
@@ -68,6 +76,10 @@ export async function createOrderAction(
     const { userId: clerkUserId } = await auth();
     const user = clerkUserId ? await requireUser() : null;
     const order = await createOrder(result.data, user?.id ?? null);
+
+    deliverPendingOrderNotifications().catch((error) =>
+      console.error("Order notification delivery failed:", error),
+    );
 
     if (user && !user.phone) {
       try {

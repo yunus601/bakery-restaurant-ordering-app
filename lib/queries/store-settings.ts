@@ -9,6 +9,7 @@ const settingsSelect = {
   pickupAddress: true,
   openingHours: true,
   acceptingOrders: true,
+  customerCancellationEnabled: true,
   pickupEnabled: true,
   deliveryEnabled: true,
   pickupPreparationMinMinutes: true,

@@ -41,6 +41,7 @@ export function StoreSettingsForm({ settings }: { settings: StoreSettings }) {
         <p className="mt-1 text-sm text-bakery-muted">Pause new orders without hiding the menu or deploying the app.</p>
         <div className="mt-6 grid gap-5 sm:grid-cols-2">
           <Toggle name="acceptingOrders" label="Accepting new orders" defaultChecked={settings.acceptingOrders} />
+          <Toggle name="customerCancellationEnabled" label="Allow customers to cancel placed orders" defaultChecked={settings.customerCancellationEnabled} />
           <Toggle name="pickupEnabled" label="Pickup enabled" defaultChecked={settings.pickupEnabled} />
           <Toggle name="deliveryEnabled" label="Delivery enabled" defaultChecked={settings.deliveryEnabled} error={firstError(state.errors?.deliveryEnabled)} />
           <Field label="Default delivery fee (GHS)" name="deliveryFeeGhs" type="number" min="0" step="0.01" defaultValue={(settings.flatDeliveryFeePesewas / 100).toFixed(2)} error={firstError(state.errors?.flatDeliveryFeePesewas)} />

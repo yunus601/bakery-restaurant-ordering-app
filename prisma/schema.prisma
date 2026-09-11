@@ -45,6 +45,22 @@ enum OrderEventType {
   PAYMENT_STATUS_CHANGED
 }
 
+enum NotificationType {
+  ORDER_RECEIVED
+  ORDER_CONFIRMED
+  ORDER_READY
+  ORDER_OUT_FOR_DELIVERY
+  ORDER_COMPLETED
+  ORDER_CANCELLED
+}
+
+enum NotificationStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
 model User {
   id        String   @id @default(cuid())
   clerkId   String   @unique
@@ -168,13 +184,43 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  events OrderEvent[]
+  events        OrderEvent[]
+  notifications NotificationOutbox[]
 
   idempotencyKey String? @unique
 
   @@index([status, createdAt])
   @@index([userId])
   @@index([customerPhone])
+}
+
+model NotificationOutbox {
+  id             String             @id @default(cuid())
+  orderId        String
+  order          Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type           NotificationType
+  recipientEmail String
+  recipientName  String?
+  status         NotificationStatus @default(PENDING)
+  attempts       Int                @default(0)
+  availableAt    DateTime           @default(now())
+  sentAt         DateTime?
+  lastError      String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([orderId, type])
+  @@index([status, availableAt])
+}
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int      @default(0)
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
 }
 
 model OrderEvent {
@@ -240,7 +286,8 @@ model RestaurantSettings {
   pickupAddress String @default("123 Bakery Street, Accra, Ghana")
   openingHours  String @default("Monday–Saturday: 7:00 AM–7:00 PM")
 
-  acceptingOrders Boolean @default(true)
+  acceptingOrders             Boolean @default(true)
+  customerCancellationEnabled Boolean @default(true)
 
   pickupEnabled   Boolean @default(true)
   deliveryEnabled Boolean @default(true)

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Footer } from "@/components/Footer";
 import { SiteHeader } from "@/components/Header";
 import { getCustomerAddresses } from "@/lib/queries/customer-addresses";
+import { MAX_SAVED_ADDRESSES } from "@/lib/validation/address";
 
 export const metadata: Metadata = {
   title: "Saved addresses",
@@ -37,7 +38,7 @@ export default async function AddressesPage() {
               </p>
             </div>
 
-            {addresses.length > 0 && (
+            {addresses.length > 0 && addresses.length < MAX_SAVED_ADDRESSES && (
               <Button render={<Link href="/account/addresses/new" />}>
                 <Plus className="size-4" aria-hidden="true" />
                 Add address
@@ -46,7 +47,10 @@ export default async function AddressesPage() {
           </div>
 
           <div className="mt-9">
-            <AddressList addresses={addresses} />
+            <AddressList
+              addresses={addresses}
+              maximumAddresses={MAX_SAVED_ADDRESSES}
+            />
           </div>
         </div>
       </section>

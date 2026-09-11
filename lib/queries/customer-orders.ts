@@ -68,6 +68,7 @@ export async function getCustomerOrderById(orderId: string) {
       customerEmail: true,
       customerPhone: true,
       customerNote: true,
+      cancellationReason: true,
       fulfillmentMethod: true,
       paymentMethod: true,
       paymentStatus: true,

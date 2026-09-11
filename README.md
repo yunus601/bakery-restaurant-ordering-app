@@ -16,6 +16,22 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Order notification delivery
+
+Order emails use Resend and are queued in the database before delivery. Configure
+these server-only environment variables in development and production:
+
+```bash
+RESEND_API_KEY=re_...
+NOTIFICATION_FROM_EMAIL="Confirm Bakery <orders@example.com>"
+CRON_SECRET=a-long-random-secret
+```
+
+Schedule a job to `POST /api/tasks/notifications` with the header
+`Authorization: Bearer $CRON_SECRET`. Failed deliveries remain in the outbox
+and are retried with exponential backoff. Without the Resend variables, orders
+are still created and notification rows remain retryable.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const MAX_SAVED_ADDRESSES = 10;
+
 const optionalText = (maxLength: number) =>
   z.preprocess(
     (value) =>

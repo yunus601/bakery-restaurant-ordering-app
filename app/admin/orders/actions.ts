@@ -8,6 +8,7 @@ import { OrderStatus, PaymentStatus } from "@/lib/generated/prisma/client";
 import { canTransitionPaymentStatus } from "@/lib/orders/payment-transition";
 import { canTransitionOrderStatus } from "@/lib/orders/status-transition";
 import { prisma } from "@/lib/prisma";
+import { deliverPendingOrderNotifications, enqueueOrderNotification, notificationTypeForStatus } from "@/lib/notifications/outbox";
 
 const updateOrderStatusSchema = z
   .object({
@@ -78,6 +79,8 @@ export async function updateOrderStatusAction(
         status: true,
         fulfillmentMethod: true,
         paymentStatus: true,
+        customerEmail: true,
+        customerName: true,
       },
     });
 
@@ -140,6 +143,8 @@ export async function updateOrderStatusAction(
           reason: nextStatus === "CANCELLED" ? cancellationReason : null,
         },
       });
+      const notificationType = notificationTypeForStatus(nextStatus);
+      if (notificationType) await enqueueOrderNotification(tx, { orderId, type: notificationType, recipientEmail: order.customerEmail, recipientName: order.customerName });
 
       return true;
     });
@@ -155,6 +160,7 @@ export async function updateOrderStatusAction(
     revalidatePath("/admin");
     revalidatePath("/admin/orders");
     revalidatePath(`/admin/orders/${orderId}`);
+    deliverPendingOrderNotifications().catch((error) => console.error("Order notification delivery failed:", error));
 
     return {
       success: true,

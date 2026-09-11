@@ -6,7 +6,13 @@ import type { CustomerAddress } from "@/lib/queries/customer-addresses";
 
 import { AddressActions } from "./AddressActions";
 
-export function AddressList({ addresses }: { addresses: CustomerAddress[] }) {
+export function AddressList({
+  addresses,
+  maximumAddresses,
+}: {
+  addresses: CustomerAddress[];
+  maximumAddresses: number;
+}) {
   if (addresses.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-card px-6 py-14 text-center">
@@ -25,7 +31,12 @@ export function AddressList({ addresses }: { addresses: CustomerAddress[] }) {
   }
 
   return (
-    <div className="grid gap-5 md:grid-cols-2">
+    <>
+      <p className="mb-4 text-sm text-bakery-muted" aria-live="polite">
+        {addresses.length} of {maximumAddresses} saved addresses used.
+        {addresses.length === maximumAddresses && " Delete an address before adding another."}
+      </p>
+      <div className="grid gap-5 md:grid-cols-2">
       {addresses.map((address) => (
         <article
           key={address.id}
@@ -84,6 +95,7 @@ export function AddressList({ addresses }: { addresses: CustomerAddress[] }) {
           </div>
         </article>
       ))}
-    </div>
+      </div>
+    </>
   );
 }

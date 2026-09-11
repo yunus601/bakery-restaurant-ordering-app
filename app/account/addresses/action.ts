@@ -5,7 +5,11 @@ import { z } from "zod";
 
 import { requireUser } from "@/lib/auth/require-user";
 import { prisma } from "@/lib/prisma";
-import { addressSchema, type AddressInput } from "@/lib/validation/address";
+import {
+  addressSchema,
+  MAX_SAVED_ADDRESSES,
+  type AddressInput,
+} from "@/lib/validation/address";
 
 export type AddressActionState = {
   success: boolean;
@@ -51,13 +55,17 @@ export async function createAddressAction(
   }
 
   try {
-    await prisma.$transaction(
+    const created = await prisma.$transaction(
       async (tx) => {
         const addressCount = await tx.address.count({
           where: {
             userId: user.id,
           },
         });
+
+        if (addressCount >= MAX_SAVED_ADDRESSES) {
+          return false;
+        }
 
         const shouldBeDefault = addressCount === 0 || result.data.isDefault;
 
@@ -86,6 +94,8 @@ export async function createAddressAction(
             isDefault: shouldBeDefault,
           },
         });
+
+        return true;
       },
       {
         isolationLevel: "Serializable",
@@ -93,6 +103,13 @@ export async function createAddressAction(
         timeout: 15_000,
       },
     );
+
+    if (!created) {
+      return {
+        success: false,
+        message: `You can save up to ${MAX_SAVED_ADDRESSES} addresses. Delete one before adding another.`,
+      };
+    }
 
     revalidateAddressPages();
 

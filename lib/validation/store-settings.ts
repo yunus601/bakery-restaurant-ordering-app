@@ -7,6 +7,7 @@ export const storeSettingsSchema = z
     pickupAddress: z.string().trim().min(5).max(300),
     openingHours: z.string().trim().min(3).max(500),
     acceptingOrders: z.boolean(),
+    customerCancellationEnabled: z.boolean(),
     pickupEnabled: z.boolean(),
     deliveryEnabled: z.boolean(),
     pickupPreparationMinMinutes: z.number().int().min(0).max(1440),

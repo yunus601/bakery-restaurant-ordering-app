@@ -27,6 +27,8 @@ export async function updateStoreSettingsAction(
     pickupAddress: formData.get("pickupAddress"),
     openingHours: formData.get("openingHours"),
     acceptingOrders: formData.get("acceptingOrders") === "on",
+    customerCancellationEnabled:
+      formData.get("customerCancellationEnabled") === "on",
     pickupEnabled: formData.get("pickupEnabled") === "on",
     deliveryEnabled: formData.get("deliveryEnabled") === "on",
     pickupPreparationMinMinutes: Number(

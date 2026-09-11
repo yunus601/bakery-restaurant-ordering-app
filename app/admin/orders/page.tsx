@@ -141,6 +141,7 @@ export default async function AdminOrdersPage({
             </div>
           </div>
         ) : (
+          <>
           <div className="divide-y md:hidden">
             {result.orders.map((order) => {
               const isOverdue = isOrderOverdue(order.createdAt, order.status, overdueAfterMinutes);
@@ -245,6 +246,7 @@ export default async function AdminOrdersPage({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
