@@ -1,6 +1,8 @@
-import { ClipboardList, Search, SlidersHorizontal } from "lucide-react";
+import { ClipboardList, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 
+import { AdminOrderRefresh } from "@/components/admin/orders/AdminOrderRefresh";
+import { OrderFilters } from "@/components/admin/orders/OrderFilters";
 import {
   Pagination,
   PaginationContent,
@@ -12,6 +14,7 @@ import {
 import type { OrderStatus } from "@/lib/generated/prisma/client";
 import { formatPrice } from "@/lib/formatters";
 import { getAdminOrders } from "@/lib/queries/admin-orders";
+import { getStoreSettings } from "@/lib/queries/store-settings";
 import { cn } from "@/lib/utils";
 
 const orderStatuses = [
@@ -60,8 +63,12 @@ export default async function AdminOrdersPage({
   const status = orderStatuses.includes(statusValue as OrderStatus)
     ? (statusValue as OrderStatus)
     : undefined;
-  const result = await getAdminOrders({ page, status, search });
+  const [result, storeSettings] = await Promise.all([
+    getAdminOrders({ page, status, search }),
+    getStoreSettings(),
+  ]);
   const visibleTotalPages = Math.max(1, result.pagination.totalPages);
+  const overdueAfterMinutes = storeSettings.pickupPreparationMaxMinutes + 15;
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-10">
@@ -77,62 +84,34 @@ export default async function AdminOrdersPage({
         </p>
       </div>
 
-      <form
-        action="/admin/orders"
-        className="mt-8 grid gap-3 rounded-2xl border bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_13rem_auto]"
-      >
-        <label className="relative">
-          <span className="sr-only">Search orders</span>
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-bakery-muted"
-            aria-hidden="true"
-          />
-          <input
-            name="q"
-            type="search"
-            defaultValue={search}
-            placeholder="Order number, customer, or phone"
-            className="h-11 w-full rounded-xl border bg-background pl-10 pr-4 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
-          />
-        </label>
+      <div className="mt-6 flex items-center justify-between gap-4">
+        <p className="text-sm text-bakery-muted">
+          Active orders become overdue after {overdueAfterMinutes} minutes.
+        </p>
+        <AdminOrderRefresh updatedAt={new Date()} />
+      </div>
 
-        <label className="relative">
-          <span className="sr-only">Filter by status</span>
-          <SlidersHorizontal
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-bakery-muted"
-            aria-hidden="true"
-          />
-          <select
-            name="status"
-            defaultValue={status ?? ""}
-            className="h-11 w-full cursor-pointer appearance-none rounded-xl border bg-background pl-10 pr-4 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
+      <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5" aria-label="Actionable order counts">
+        {actionableStatusSummaries.map(({ status: summaryStatus, label }) => (
+          <Link
+            key={summaryStatus}
+            href={buildOrdersHref(1, undefined, summaryStatus)}
+            className="rounded-xl border bg-white p-4 shadow-sm transition-colors hover:border-brand hover:bg-brand/5"
           >
-            <option value="">All statuses</option>
-            {orderStatuses.map((value) => (
-              <option key={value} value={value}>
-                {formatStatus(value)}
-              </option>
-            ))}
-          </select>
-        </label>
+            <p className="text-xs font-semibold uppercase tracking-wide text-bakery-muted">{label}</p>
+            <p className="mt-2 font-display text-3xl font-semibold text-foreground">
+              {result.actionableCounts[summaryStatus].toLocaleString("en-GH")}
+            </p>
+          </Link>
+        ))}
+      </section>
 
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            className="h-11 flex-1 cursor-pointer rounded-xl bg-brand px-5 font-navigation text-sm font-semibold text-white transition hover:bg-brand/90"
-          >
-            Apply
-          </button>
-          {(search || status) && (
-            <Link
-              href="/admin/orders"
-              className="grid h-11 place-items-center rounded-xl border px-4 text-sm font-semibold text-bakery-muted transition hover:border-brand hover:text-brand"
-            >
-              Reset
-            </Link>
-          )}
-        </div>
-      </form>
+      <OrderFilters
+        key={[search, status].join(":")}
+        search={search}
+        status={status}
+        statuses={orderStatuses}
+      />
 
       <section className="mt-6 overflow-hidden rounded-2xl border bg-white shadow-sm">
         <div className="flex items-center justify-between gap-4 border-b px-5 py-4 sm:px-6">
@@ -162,7 +141,36 @@ export default async function AdminOrdersPage({
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="divide-y md:hidden">
+            {result.orders.map((order) => {
+              const isOverdue = isOrderOverdue(order.createdAt, order.status, overdueAfterMinutes);
+
+              return (
+                <Link
+                  key={order.id}
+                  href={`/admin/orders/${order.id}`}
+                  className={cn(
+                    "block px-5 py-5 transition-colors hover:bg-brand/5",
+                    isOverdue && "bg-red-50/70",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-navigation font-semibold text-brand">{order.orderNumber}</p>
+                      <p className="mt-1 text-xs text-bakery-muted">{dateFormatter.format(order.createdAt)}</p>
+                    </div>
+                    <StatusBadge status={order.status} />
+                  </div>
+                  <p className="mt-4 font-medium">{order.customerName}</p>
+                  <p className="mt-1 text-sm text-bakery-muted">
+                    {order._count.items} {order._count.items === 1 ? "item" : "items"} · {formatLabel(order.fulfillmentMethod)} · {formatPrice(order.totalPesewas)}
+                  </p>
+                  <OrderAttention status={order.status} isOverdue={isOverdue} />
+                </Link>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-220 text-left text-sm">
               <thead className="bg-[#faf7f4] text-xs uppercase tracking-wide text-bakery-muted">
                 <tr>
@@ -178,11 +186,11 @@ export default async function AdminOrdersPage({
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {result.orders.map((order) => (
-                  <tr
-                    key={order.id}
-                    className="transition-colors hover:bg-brand/5"
-                  >
+                {result.orders.map((order) => {
+                  const isOverdue = isOrderOverdue(order.createdAt, order.status, overdueAfterMinutes);
+
+                  return (
+                  <tr key={order.id} className={cn("transition-colors hover:bg-brand/5", isOverdue && "bg-red-50/70")}>
                     <td className="px-5 py-4 sm:px-6">
                       <Link
                         href={`/admin/orders/${order.id}`}
@@ -223,6 +231,7 @@ export default async function AdminOrdersPage({
                       >
                         {formatStatus(order.status)}
                       </span>
+                      <OrderAttention status={order.status} isOverdue={isOverdue} />
                     </td>
                     <td className="px-5 py-4 text-bakery-muted">
                       {order._count.items}
@@ -231,7 +240,8 @@ export default async function AdminOrdersPage({
                       {formatPrice(order.totalPesewas)}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -276,6 +286,36 @@ export default async function AdminOrdersPage({
   );
 }
 
+const actionableStatusSummaries = [
+  { status: "PLACED", label: "New" },
+  { status: "CONFIRMED", label: "Confirmed" },
+  { status: "PREPARING", label: "Preparing" },
+  { status: "READY", label: "Ready" },
+  { status: "OUT_FOR_DELIVERY", label: "Delivering" },
+] as const satisfies readonly { status: OrderStatus; label: string }[];
+
+function StatusBadge({ status }: { status: OrderStatus }) {
+  return (
+    <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-semibold", statusStyles[status])}>
+      {formatStatus(status)}
+    </span>
+  );
+}
+
+function OrderAttention({ status, isOverdue }: { status: OrderStatus; isOverdue: boolean }) {
+  if (isOverdue) {
+    return <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-red-700"><TriangleAlert className="size-3.5" aria-hidden="true" /> Overdue</p>;
+  }
+  if (status === "PLACED") {
+    return <p className="mt-2 text-xs font-semibold text-amber-700">New order — needs acceptance</p>;
+  }
+  return null;
+}
+
+function isOrderOverdue(createdAt: Date, status: OrderStatus, overdueAfterMinutes: number) {
+  return !["COMPLETED", "CANCELLED"].includes(status) && Date.now() - createdAt.getTime() > overdueAfterMinutes * 60_000;
+}
+
 function buildOrdersHref(page: number, search?: string, status?: OrderStatus) {
   const params = new URLSearchParams();
   params.set("page", String(page));
@@ -290,4 +330,8 @@ function firstValue(value: string | string[] | undefined) {
 
 function formatStatus(value: string) {
   return value.toLowerCase().replaceAll("_", " ");
+}
+
+function formatLabel(value: string) {
+  return formatStatus(value);
 }

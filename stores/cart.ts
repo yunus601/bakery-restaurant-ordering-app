@@ -22,6 +22,9 @@ type CartStore = {
   addItem: (product: Product) => void;
   removeItem: (productId: string) => void;
   setQuantity: (productId: string, quantity: number) => void;
+  updateItemPrices: (
+    updates: Array<{ productId: string; pricePesewas: number }>,
+  ) => void;
   clearCart: () => void;
 
   openCart: () => void;
@@ -90,6 +93,22 @@ export const useCartStore = create<CartStore>()(
                     : item,
                 ),
         })),
+
+      updateItemPrices: (updates) =>
+        set((state) => {
+          const pricesByProductId = new Map(
+            updates.map((update) => [update.productId, update.pricePesewas]),
+          );
+
+          return {
+            items: state.items.map((item) => {
+              const pricePesewas = pricesByProductId.get(item.productId);
+              return pricePesewas === undefined
+                ? item
+                : { ...item, pricePesewas };
+            }),
+          };
+        }),
 
       clearCart: () => set({ items: [] }),
 

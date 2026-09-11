@@ -72,6 +72,7 @@ export default async function AdminProductsPage({
       </header>
 
       <ProductFilters
+        key={[search, categoryId, availability, visibility].join(":")}
         search={search}
         categoryId={categoryId}
         availability={availability}

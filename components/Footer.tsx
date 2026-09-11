@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { siteConfig } from "@/lib/config/site";
+import { getStoreSettings } from "@/lib/queries/store-settings";
 
 const footerLinks = [
   { label: "Home", href: "/" },
@@ -10,7 +11,10 @@ const footerLinks = [
   { label: "Contact", href: "#contact" },
 ];
 
-export function Footer() {
+export async function Footer() {
+  const settings = await getStoreSettings();
+  const phoneHref = `tel:${settings.contactPhone.replace(/[^+\d]/g, "")}`;
+  const emailHref = `mailto:${settings.contactEmail}`;
   return (
     <footer
       id="contact"
@@ -54,23 +58,23 @@ export function Footer() {
             </h2>
 
             <address className="mt-5 space-y-3 not-italic text-surface/80">
-              <p>{siteConfig.contact.address}</p>
+              <p>{settings.pickupAddress}</p>
 
               <p>
                 <a
-                  href={siteConfig.contact.phoneHref}
+                  href={phoneHref}
                   className="hover:text-brand-accent"
                 >
-                  {siteConfig.contact.phoneDisplay}
+                  {settings.contactPhone}
                 </a>
               </p>
 
               <p>
                 <a
-                  href={siteConfig.contact.emailHref}
+                  href={emailHref}
                   className="hover:text-brand-accent"
                 >
-                  {siteConfig.contact.email}
+                  {settings.contactEmail}
                 </a>
               </p>
             </address>
@@ -103,18 +107,13 @@ export function Footer() {
             </h2>
 
             <div className="mt-5 space-y-3 text-surface/80">
+              <p className="whitespace-pre-line">{settings.openingHours}</p>
               <p>Pickup from our bakery</p>
               <p>Delivery to your address</p>
               <p>Payment on pickup or delivery</p>
             </div>
           </div>
         </div>
-
-        {siteConfig.isUsingPlaceholderContactDetails && (
-          <p className="mb-6 rounded-lg border border-brand-accent/30 bg-black/30 p-3 text-sm text-brand-accent">
-            Development notice: contact details are placeholders.
-          </p>
-        )}
 
         <p className="text-center text-sm text-subtle">
           © {new Date().getFullYear()} {siteConfig.name}. All rights reserved.

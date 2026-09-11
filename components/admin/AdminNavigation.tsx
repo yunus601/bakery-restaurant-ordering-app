@@ -6,6 +6,7 @@ import {
   Croissant,
   LayoutDashboard,
   Menu,
+  MapPinned,
   Settings,
   Store,
   Tags,
@@ -30,6 +31,7 @@ const navigation = [
   { label: "Orders", href: "/admin/orders", icon: ClipboardList },
   { label: "Products", href: "/admin/products", icon: Croissant },
   { label: "Categories", href: "/admin/categories", icon: Tags },
+  { label: "Delivery zones", href: "/admin/delivery-zones", icon: MapPinned },
   { label: "Customers", href: "/admin/customers", icon: Users },
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
@@ -74,7 +76,7 @@ export function AdminNavigation({
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col border-r bg-white p-6 lg:flex">
+      <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col border-r bg-white p-6 print:hidden lg:flex">
         <AdminSidebarContent
           adminName={adminName}
           adminEmail={adminEmail}
@@ -82,7 +84,7 @@ export function AdminNavigation({
         />
       </aside>
 
-      <header className="sticky top-0 z-30 flex h-18 items-center justify-between border-b bg-white/95 px-5 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-30 flex h-18 items-center justify-between border-b bg-white/95 px-5 backdrop-blur print:hidden lg:hidden">
         <Link href="/admin" className="font-display text-2xl font-semibold text-brand">
           Confirm Bakery
         </Link>

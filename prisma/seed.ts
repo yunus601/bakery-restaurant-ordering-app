@@ -103,8 +103,15 @@ async function main() {
     update: {
       businessName: "Confirm Bakery",
       currency: "GHS",
+      contactPhone: "+233 20 000 0000",
+      contactEmail: "hello@confirmbakery.example",
+      pickupAddress: "123 Bakery Street, Accra, Ghana",
+      openingHours: "Monday–Saturday: 7:00 AM–7:00 PM",
+      acceptingOrders: true,
       pickupEnabled: true,
       deliveryEnabled: true,
+      pickupPreparationMinMinutes: 30,
+      pickupPreparationMaxMinutes: 45,
       flatDeliveryFeePesewas: 2000,
       minimumOrderPesewas: 0,
     },
@@ -112,10 +119,32 @@ async function main() {
       id: "default",
       businessName: "Confirm Bakery",
       currency: "GHS",
+      contactPhone: "+233 20 000 0000",
+      contactEmail: "hello@confirmbakery.example",
+      pickupAddress: "123 Bakery Street, Accra, Ghana",
+      openingHours: "Monday–Saturday: 7:00 AM–7:00 PM",
+      acceptingOrders: true,
       pickupEnabled: true,
       deliveryEnabled: true,
+      pickupPreparationMinMinutes: 30,
+      pickupPreparationMaxMinutes: 45,
       flatDeliveryFeePesewas: 2000,
       minimumOrderPesewas: 0,
+    },
+  });
+
+  await prisma.deliveryZone.upsert({
+    where: { name: "Accra" },
+    update: {
+      deliveryFeePesewas: 2000,
+      isActive: true,
+      sortOrder: 0,
+    },
+    create: {
+      name: "Accra",
+      deliveryFeePesewas: 2000,
+      isActive: true,
+      sortOrder: 0,
     },
   });
 

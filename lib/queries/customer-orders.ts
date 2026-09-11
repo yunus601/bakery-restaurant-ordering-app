@@ -76,6 +76,7 @@ export async function getCustomerOrderById(orderId: string) {
       deliveryCity: true,
       deliveryRegion: true,
       deliveryDirections: true,
+      deliveryZoneName: true,
       subtotalPesewas: true,
       deliveryFeePesewas: true,
       totalPesewas: true,
@@ -93,6 +94,50 @@ export async function getCustomerOrderById(orderId: string) {
           id: true,
           productNameSnapshot: true,
           imageUrlSnapshot: true,
+          unitPricePesewas: true,
+          quantity: true,
+          lineTotalPesewas: true,
+        },
+      },
+    },
+  });
+}
+
+export async function getGuestOrderConfirmation(
+  orderId: string,
+  idempotencyKey: string,
+) {
+  return prisma.order.findFirst({
+    where: {
+      id: orderId,
+      idempotencyKey,
+      userId: null,
+    },
+    select: {
+      id: true,
+      orderNumber: true,
+      customerName: true,
+      customerEmail: true,
+      customerPhone: true,
+      customerNote: true,
+      fulfillmentMethod: true,
+      paymentMethod: true,
+      paymentStatus: true,
+      status: true,
+      deliveryAddressLine: true,
+      deliveryCity: true,
+      deliveryRegion: true,
+      deliveryDirections: true,
+      deliveryZoneName: true,
+      subtotalPesewas: true,
+      deliveryFeePesewas: true,
+      totalPesewas: true,
+      createdAt: true,
+      items: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          productNameSnapshot: true,
           unitPricePesewas: true,
           quantity: true,
           lineTotalPesewas: true,

@@ -1,28 +1,28 @@
 import {
-  ArrowLeft,
   Banknote,
   CheckCircle2,
   MapPin,
   Package,
   Phone,
   ReceiptText,
-  Truck,
 } from "lucide-react";
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { OrderStatusBadge } from "@/components/account/orders/OrderStatusBadge";
-import { OrderStatusRefresh } from "@/components/account/orders/OrderStatusRefresh";
 import { Footer } from "@/components/Footer";
 import { SiteHeader } from "@/components/Header";
+import { buttonVariants } from "@/components/ui/button";
 import { formatPrice } from "@/lib/formatters";
-import { getCustomerOrderById } from "@/lib/queries/customer-orders";
+import { getGuestOrderConfirmation } from "@/lib/queries/customer-orders";
 import { getStoreSettings } from "@/lib/queries/store-settings";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Order details",
+  title: "Order confirmation | Confirm Bakery",
+  description: "Review your Confirm Bakery order confirmation.",
+  referrer: "no-referrer",
+  robots: { index: false, follow: false },
 };
 
 const orderDateFormatter = new Intl.DateTimeFormat("en-GH", {
@@ -31,24 +31,24 @@ const orderDateFormatter = new Intl.DateTimeFormat("en-GH", {
   timeZone: "Africa/Accra",
 });
 
-type CustomerOrderPageProps = {
+type GuestOrderConfirmationPageProps = {
   params: Promise<{ orderId: string }>;
-  searchParams: Promise<{ placed?: string | string[] }>;
+  searchParams: Promise<{ key?: string | string[] }>;
 };
 
-export default async function CustomerOrderPage({
+export default async function GuestOrderConfirmationPage({
   params,
   searchParams,
-}: CustomerOrderPageProps) {
-  const { orderId } = await params;
-  const query = await searchParams;
-  const wasJustPlaced =
-    (Array.isArray(query.placed) ? query.placed[0] : query.placed) === "1";
+}: GuestOrderConfirmationPageProps) {
+  const [{ orderId }, query] = await Promise.all([params, searchParams]);
+  const key = Array.isArray(query.key) ? query.key[0] : query.key;
+
+  if (!key) notFound();
+
   const [order, storeSettings] = await Promise.all([
-    getCustomerOrderById(orderId),
+    getGuestOrderConfirmation(orderId, key),
     getStoreSettings(),
   ]);
-
   if (!order) notFound();
 
   const isDelivery = order.fulfillmentMethod === "DELIVERY";
@@ -60,89 +60,43 @@ export default async function CustomerOrderPage({
       </div>
 
       <section className="min-h-[60vh] px-6 py-12 lg:px-10 lg:py-16">
-        <div className="mx-auto max-w-5xl">
-          {wasJustPlaced && (
-            <div
-              role="status"
-              className="mb-7 flex gap-3 rounded-2xl border border-green-200 bg-green-50 p-4 text-green-900"
-            >
-              <CheckCircle2
-                className="mt-0.5 size-5 shrink-0"
-                aria-hidden="true"
-              />
-              <div>
-                <p className="font-navigation font-semibold">Order received</p>
-                <p className="mt-1 text-sm">
-                  Thank you. Your order is confirmed in our system and can be
-                  safely revisited from this page.
-                </p>
-              </div>
-            </div>
-          )}
-          <Link
-            href="/account/orders"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-brand hover:underline"
-          >
-            <ArrowLeft className="size-4" aria-hidden="true" />
-            Back to orders
-          </Link>
-
-          <header className="mt-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="font-navigation text-sm font-semibold uppercase tracking-[0.18em] text-brand">
-                Order details
-              </p>
-              <h1 className="mt-2 font-display text-4xl font-semibold sm:text-5xl">
-                {order.orderNumber}
-              </h1>
-              <time
-                dateTime={order.createdAt.toISOString()}
-                className="mt-3 block text-sm text-bakery-muted"
-              >
-                Placed {orderDateFormatter.format(order.createdAt)}
-              </time>
-            </div>
-            <div className="space-y-3 sm:text-right">
-              <OrderStatusBadge status={order.status} />
-              <OrderStatusRefresh
-                status={order.status}
-                initialCheckedAt={new Date().toISOString()}
-              />
-            </div>
+        <div className="mx-auto max-w-4xl">
+          <header className="text-center">
+            <span className="mx-auto grid size-16 place-items-center rounded-full bg-green-100 text-green-700">
+              <CheckCircle2 className="size-9" aria-hidden="true" />
+            </span>
+            <p className="mt-5 font-navigation font-semibold text-brand">
+              Order received
+            </p>
+            <h1 className="mt-2 font-display text-4xl font-semibold sm:text-5xl">
+              Thank you for your order
+            </h1>
+            <p className="mt-3 text-bakery-muted">
+              Order {order.orderNumber} ·{" "}
+              {orderDateFormatter.format(order.createdAt)}
+            </p>
           </header>
 
-          <div className="mt-9 grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
+          <div className="mt-9 grid gap-6 lg:grid-cols-[1.3fr_0.8fr]">
             <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
               <div className="border-b px-5 py-5 sm:px-6">
                 <h2 className="font-navigation text-xl font-semibold">
-                  Items
+                  Your items
                 </h2>
               </div>
               <div className="divide-y">
                 {order.items.map((item) => (
-                  <article
+                  <div
                     key={item.id}
-                    className="flex items-center gap-4 px-5 py-5 sm:px-6"
+                    className="flex gap-4 px-5 py-4 sm:px-6"
                   >
-                    <div className="relative size-18 shrink-0 overflow-hidden rounded-xl bg-bakery-cream">
-                      {item.imageUrlSnapshot ? (
-                        <Image
-                          src={item.imageUrlSnapshot}
-                          alt=""
-                          fill
-                          sizes="72px"
-                          className="object-cover"
-                        />
-                      ) : (
-                        <span className="grid size-full place-items-center text-brand">
-                          <Package className="size-6" aria-hidden="true" />
-                        </span>
-                      )}
-                    </div>
+                    <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
+                      <Package className="size-5" aria-hidden="true" />
+                    </span>
                     <div className="min-w-0 flex-1">
-                      <h3 className="truncate font-navigation font-semibold">
+                      <p className="font-navigation font-semibold">
                         {item.productNameSnapshot}
-                      </h3>
+                      </p>
                       <p className="mt-1 text-sm text-bakery-muted">
                         {item.quantity} × {formatPrice(item.unitPricePesewas)}
                       </p>
@@ -150,22 +104,22 @@ export default async function CustomerOrderPage({
                     <p className="font-semibold">
                       {formatPrice(item.lineTotalPesewas)}
                     </p>
-                  </article>
+                  </div>
                 ))}
               </div>
-              <div className="space-y-3 border-t bg-[#faf7f4] px-5 py-5 text-sm sm:px-6">
+              <dl className="space-y-3 border-t bg-[#faf7f4] px-5 py-5 text-sm sm:px-6">
                 <PriceRow label="Subtotal" value={order.subtotalPesewas} />
                 <PriceRow label="Delivery" value={order.deliveryFeePesewas} />
-                <div className="flex items-center justify-between border-t pt-3 font-navigation text-lg font-bold">
-                  <span>Total</span>
-                  <span>{formatPrice(order.totalPesewas)}</span>
+                <div className="flex justify-between border-t pt-3 font-navigation text-lg font-bold">
+                  <dt>Total</dt>
+                  <dd>{formatPrice(order.totalPesewas)}</dd>
                 </div>
-              </div>
+              </dl>
             </section>
 
             <aside className="space-y-5">
               <InfoCard
-                icon={isDelivery ? Truck : Package}
+                icon={isDelivery ? MapPin : Package}
                 title={isDelivery ? "Delivery" : "Pickup"}
               >
                 {isDelivery ? (
@@ -188,24 +142,26 @@ export default async function CustomerOrderPage({
                   </address>
                 ) : (
                   <p className="text-bakery-muted">
-                    Collect from {storeSettings.pickupAddress}. We’ll let you
-                    know when it is ready, usually in{" "}
+                    Collect from {storeSettings.pickupAddress}. We’ll contact
+                    you when it is ready, usually in{" "}
                     {storeSettings.pickupPreparationMinMinutes}–
                     {storeSettings.pickupPreparationMaxMinutes} minutes.
                   </p>
                 )}
               </InfoCard>
 
-              <InfoCard icon={Banknote} title="Payment">
-                <p className="capitalize text-bakery-muted">
-                  {order.paymentMethod.toLowerCase().replaceAll("_", " ")}
+              <InfoCard icon={Banknote} title="Payment instructions">
+                <p className="font-medium">
+                  {isDelivery
+                    ? "Please pay cash when your order arrives."
+                    : "Please pay when you collect your order."}
                 </p>
-                <p className="mt-1 capitalize font-semibold">
-                  {order.paymentStatus.toLowerCase()}
+                <p className="mt-1 capitalize text-bakery-muted">
+                  Status: {order.paymentStatus.toLowerCase()}
                 </p>
               </InfoCard>
 
-              <InfoCard icon={Phone} title="Contact">
+              <InfoCard icon={Phone} title="Contact details">
                 <p className="font-medium">{order.customerName}</p>
                 <p className="mt-1 text-bakery-muted">{order.customerPhone}</p>
                 {order.customerEmail && (
@@ -225,12 +181,24 @@ export default async function CustomerOrderPage({
             </aside>
           </div>
 
-          <div className="mt-8 text-center">
+          <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
             <Link
               href="/menu"
-              className="inline-flex h-11 items-center justify-center rounded-lg bg-brand px-6 font-navigation text-sm font-semibold text-surface transition hover:bg-brand/90"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "bg-brand font-navigation text-surface hover:bg-brand/90",
+              )}
             >
               Continue shopping
+            </Link>
+            <Link
+              href="/"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "lg" }),
+                "font-navigation",
+              )}
+            >
+              Return home
             </Link>
           </div>
         </div>
@@ -244,8 +212,8 @@ export default async function CustomerOrderPage({
 function PriceRow({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex justify-between text-bakery-muted">
-      <span>{label}</span>
-      <span>{formatPrice(value)}</span>
+      <dt>{label}</dt>
+      <dd>{formatPrice(value)}</dd>
     </div>
   );
 }

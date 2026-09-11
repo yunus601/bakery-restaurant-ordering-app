@@ -1,10 +1,19 @@
-import { ArrowLeft, Croissant, Mail, MapPin, Phone, Store } from "lucide-react";
+import {
+  ArrowLeft,
+  Circle,
+  Croissant,
+  Mail,
+  MapPin,
+  Phone,
+  Store,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { OrderStatusControl } from "@/components/admin/OrderStatusControl";
 import { PaymentStatusControl } from "@/components/admin/PaymentStatusControl";
+import { PrintOrderButton } from "@/components/admin/orders/PrintOrderButton";
 import { formatPrice } from "@/lib/formatters";
 import { getAllowedPaymentStatuses } from "@/lib/orders/payment-transition";
 import { getAllowedOrderStatuses } from "@/lib/orders/status-transition";
@@ -44,8 +53,8 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
       : getAllowedPaymentStatuses(order.paymentStatus);
 
   return (
-    <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-10">
-      <Link href="/admin/orders" className="inline-flex items-center gap-2 text-sm font-semibold text-brand hover:underline">
+    <div className="mx-auto max-w-7xl px-5 py-8 print:max-w-none print:px-0 print:py-0 sm:px-8 sm:py-10">
+      <Link href="/admin/orders" className="inline-flex items-center gap-2 text-sm font-semibold text-brand hover:underline print:hidden">
         <ArrowLeft className="size-4" aria-hidden="true" /> Back to orders
       </Link>
 
@@ -55,7 +64,10 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
           <h1 className="mt-1 font-display text-4xl font-semibold sm:text-5xl">{order.orderNumber}</h1>
           <p className="mt-2 text-sm text-bakery-muted">Placed {dateFormatter.format(order.createdAt)}</p>
         </div>
-        <StatusBadge status={order.status} />
+        <div className="flex items-center gap-3 print:hidden">
+          <PrintOrderButton />
+          <StatusBadge status={order.status} />
+        </div>
       </div>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
@@ -110,6 +122,11 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
               </p>
               {order.fulfillmentMethod === "DELIVERY" && (
                 <div className="mt-3 space-y-1 text-sm text-bakery-muted">
+                  {order.deliveryZoneName && (
+                    <p className="font-semibold text-foreground">
+                      {order.deliveryZoneName}
+                    </p>
+                  )}
                   <p>{order.deliveryAddressLine}</p>
                   <p>{[order.deliveryCity, order.deliveryRegion].filter(Boolean).join(", ")}</p>
                   {order.deliveryDirections && <p className="pt-2">Directions: {order.deliveryDirections}</p>}
@@ -123,12 +140,20 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
               <p className="whitespace-pre-wrap text-sm leading-6 text-bakery-muted">{order.customerNote}</p>
             </InfoCard>
           )}
+
+          {order.cancellationReason && (
+            <InfoCard title="Cancellation reason">
+              <p className="whitespace-pre-wrap text-sm leading-6 text-red-800">
+                {order.cancellationReason}
+              </p>
+            </InfoCard>
+          )}
         </div>
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:h-fit">
           <InfoCard title="Order status">
             <StatusBadge status={order.status} />
-            <div className="mt-5 border-t pt-5">
+            <div className="mt-5 border-t pt-5 print:hidden">
               <OrderStatusControl
                 orderId={order.id}
                 currentStatus={order.status}
@@ -140,7 +165,7 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
           <InfoCard title="Payment">
             <DetailRow label="Method" value={formatLabel(order.paymentMethod)} />
             <DetailRow label="Status" value={formatLabel(order.paymentStatus)} />
-            <div className="mt-5 border-t pt-5">
+            <div className="mt-5 border-t pt-5 print:hidden">
               <PaymentStatusControl
                 orderId={order.id}
                 currentStatus={order.paymentStatus}
@@ -149,15 +174,39 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
               />
             </div>
           </InfoCard>
-          <InfoCard title="Timeline">
-            <DetailRow label="Placed" value={dateFormatter.format(order.createdAt)} />
-            {order.confirmedAt && <DetailRow label="Confirmed" value={dateFormatter.format(order.confirmedAt)} />}
-            {order.completedAt && <DetailRow label="Completed" value={dateFormatter.format(order.completedAt)} />}
-            {order.cancelledAt && <DetailRow label="Cancelled" value={dateFormatter.format(order.cancelledAt)} />}
-            {order.paidAt && <DetailRow label="Paid" value={dateFormatter.format(order.paidAt)} />}
-            {order.refundedAt && <DetailRow label="Refunded" value={dateFormatter.format(order.refundedAt)} />}
-            <DetailRow label="Last updated" value={dateFormatter.format(order.updatedAt)} />
+          <div className="print:hidden">
+          <InfoCard title="Activity timeline">
+            <ol className="space-y-0">
+              <TimelineItem
+                title="Order placed"
+                detail="Submitted by the customer"
+                createdAt={order.createdAt}
+              />
+              {order.events.map((event) => {
+                const actorName = event.actor
+                  ? [event.actor.firstName, event.actor.lastName]
+                      .filter(Boolean)
+                      .join(" ") || event.actor.email || "Former staff member"
+                  : "Former staff member";
+                const eventName =
+                  event.type === "STATUS_CHANGED"
+                    ? "Order status changed"
+                    : "Payment status changed";
+                const change = `${formatLabel(event.fromValue ?? "unknown")} → ${formatLabel(event.toValue ?? "unknown")}`;
+
+                return (
+                  <TimelineItem
+                    key={event.id}
+                    title={eventName}
+                    detail={`${change} · ${actorName}`}
+                    reason={event.reason}
+                    createdAt={event.createdAt}
+                  />
+                );
+              })}
+            </ol>
           </InfoCard>
+          </div>
         </aside>
       </div>
     </div>
@@ -178,6 +227,43 @@ function TotalRow({ label, value, emphasized = false }: { label: string; value: 
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return <div className="flex justify-between gap-4 border-b py-3 text-sm first:pt-0 last:border-0 last:pb-0"><span className="text-bakery-muted">{label}</span><span className="text-right font-medium capitalize">{value}</span></div>;
+}
+
+function TimelineItem({
+  title,
+  detail,
+  reason,
+  createdAt,
+}: {
+  title: string;
+  detail: string;
+  reason?: string | null;
+  createdAt: Date;
+}) {
+  return (
+    <li className="group relative grid grid-cols-[1rem_1fr] gap-3 pb-6 last:pb-0">
+      <span className="absolute bottom-0 left-[0.45rem] top-4 w-px bg-border group-last:hidden" />
+      <Circle
+        className="relative mt-1 size-4 fill-brand text-brand"
+        aria-hidden="true"
+      />
+      <div>
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-bakery-muted">{detail}</p>
+        {reason && (
+          <p className="mt-2 rounded-lg bg-red-50 p-2 text-xs leading-5 text-red-800">
+            {reason}
+          </p>
+        )}
+        <time
+          dateTime={createdAt.toISOString()}
+          className="mt-1 block text-xs text-bakery-muted"
+        >
+          {dateFormatter.format(createdAt)}
+        </time>
+      </div>
+    </li>
+  );
 }
 
 function formatLabel(value: string) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import {
   updateOrderStatusAction,
@@ -32,6 +32,7 @@ export function OrderStatusControl({
     updateOrderStatusAction,
     initialState,
   );
+  const [nextStatus, setNextStatus] = useState<OrderStatus | "">("");
   const completionLocked =
     allowedStatuses.includes("COMPLETED") && paymentStatus !== "PAID";
 
@@ -57,7 +58,10 @@ export function OrderStatusControl({
         id="nextStatus"
         name="nextStatus"
         required
-        defaultValue=""
+        value={nextStatus}
+        onChange={(event) =>
+          setNextStatus(event.target.value as OrderStatus | "")
+        }
         disabled={pending}
         className="h-11 w-full cursor-pointer rounded-xl border bg-background px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:cursor-not-allowed disabled:opacity-60"
       >
@@ -78,6 +82,45 @@ export function OrderStatusControl({
         ))}
       </select>
 
+      {nextStatus === "CANCELLED" && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+          <label
+            className="block text-sm font-semibold text-red-950"
+            htmlFor="cancellationReason"
+          >
+            Cancellation reason
+          </label>
+          <p className="mt-1 text-xs leading-5 text-red-800">
+            This ends the order and is recorded permanently in its timeline.
+          </p>
+          <textarea
+            id="cancellationReason"
+            name="cancellationReason"
+            required
+            minLength={3}
+            maxLength={500}
+            rows={4}
+            disabled={pending}
+            aria-invalid={Boolean(state.errors?.cancellationReason)}
+            aria-describedby={
+              state.errors?.cancellationReason
+                ? "cancellationReason-error"
+                : undefined
+            }
+            className="mt-3 w-full resize-y rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
+            placeholder="Why is this order being cancelled?"
+          />
+          {state.errors?.cancellationReason?.[0] && (
+            <p
+              id="cancellationReason-error"
+              className="mt-1 text-sm text-red-700"
+            >
+              {state.errors.cancellationReason[0]}
+            </p>
+          )}
+        </div>
+      )}
+
       {completionLocked && (
         <p className="rounded-xl bg-amber-50 p-3 text-sm leading-5 text-amber-800">
           Mark the payment as paid before completing this order.
@@ -87,7 +130,12 @@ export function OrderStatusControl({
       <Button
         type="submit"
         disabled={pending}
-        className="h-11 w-full bg-brand font-navigation text-white hover:bg-brand/90"
+        className={cn(
+          "h-11 w-full font-navigation text-white",
+          nextStatus === "CANCELLED"
+            ? "bg-red-700 hover:bg-red-800"
+            : "bg-brand hover:bg-brand/90",
+        )}
       >
         {pending ? "Updating…" : "Update status"}
       </Button>

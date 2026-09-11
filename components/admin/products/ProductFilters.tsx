@@ -2,6 +2,9 @@
 
 import { Search, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useDebouncedCallback } from "use-debounce";
 
 import type {
   AdminProductCategory,
@@ -24,6 +27,27 @@ export function ProductFilters({
   visibility,
   categories,
 }: ProductFiltersProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(search ?? "");
+  const debouncedSearch = useDebouncedCallback((value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const trimmedValue = value.trim();
+
+    if (trimmedValue) {
+      params.set("q", trimmedValue);
+    } else {
+      params.delete("q");
+    }
+    params.delete("page");
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }, 350);
+
   const hasFilters = Boolean(
     search ||
       categoryId ||
@@ -45,7 +69,12 @@ export function ProductFilters({
         <input
           name="q"
           type="search"
-          defaultValue={search}
+          value={searchTerm}
+          onChange={(event) => {
+            const value = event.target.value;
+            setSearchTerm(value);
+            debouncedSearch(value);
+          }}
           placeholder="Search product name"
           className="h-11 w-full rounded-xl border bg-background pl-10 pr-4 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
         />

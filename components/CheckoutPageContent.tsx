@@ -3,7 +3,8 @@
 import { useActionState, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { CheckCircle2, MapPin, ShoppingBag, Store } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { MapPin, ShoppingBag, Store } from "lucide-react";
 
 import {
   createOrderAction,
@@ -12,6 +13,8 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
 import { formatPrice } from "@/lib/formatters";
+import type { getActiveDeliveryZones } from "@/lib/queries/delivery-zones";
+import type { StoreSettings } from "@/lib/queries/store-settings";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/stores/cart";
 
@@ -46,18 +49,26 @@ type CheckoutPageContentProps = {
   idempotencyKey: string;
   customer: CheckoutCustomer | null;
   addresses: CheckoutAddress[];
+  storeSettings: StoreSettings;
+  deliveryZones: Awaited<ReturnType<typeof getActiveDeliveryZones>>;
 };
 
 export function CheckoutPageContent({
   idempotencyKey,
   customer,
   addresses,
+  storeSettings,
+  deliveryZones,
 }: CheckoutPageContentProps) {
   const hasHydrated = useHasHydrated();
+  const router = useRouter();
   const items = useCartStore((state) => state.items);
   const clearCart = useCartStore((state) => state.clearCart);
+  const updateItemPrices = useCartStore((state) => state.updateItemPrices);
   const [fulfillmentMethod, setFulfillmentMethod] =
-    useState<FulfillmentMethod>("PICKUP");
+    useState<FulfillmentMethod>(
+      storeSettings.pickupEnabled ? "PICKUP" : "DELIVERY",
+    );
   const defaultAddress =
     addresses.find((address) => address.isDefault) ?? addresses[0] ?? null;
   const [selectedAddressId, setSelectedAddressId] = useState("");
@@ -67,6 +78,14 @@ export function CheckoutPageContent({
   const [deliveryCity, setDeliveryCity] = useState("");
   const [deliveryRegion, setDeliveryRegion] = useState("");
   const [deliveryDirections, setDeliveryDirections] = useState("");
+  const [selectedDeliveryZoneId, setSelectedDeliveryZoneId] = useState("");
+  const selectedDeliveryZone = deliveryZones.find(
+    (zone) => zone.id === selectedDeliveryZoneId,
+  );
+  const selectedMethodAvailable =
+    fulfillmentMethod === "PICKUP"
+      ? storeSettings.pickupEnabled
+      : storeSettings.deliveryEnabled && deliveryZones.length > 0;
 
   function applySavedAddress(address: CheckoutAddress) {
     setSelectedAddressId(address.id);
@@ -99,8 +118,37 @@ export function CheckoutPageContent({
   useEffect(() => {
     if (state.success && state.order) {
       clearCart();
+
+      const destination = state.linkedToAccount
+        ? `/account/orders/${state.order.id}?placed=1`
+        : `/order-confirmation/${state.order.id}?key=${encodeURIComponent(idempotencyKey)}`;
+
+      router.replace(destination);
     }
-  }, [clearCart, state.order, state.success]);
+  }, [
+    clearCart,
+    idempotencyKey,
+    router,
+    state.linkedToAccount,
+    state.order,
+    state.success,
+  ]);
+
+  useEffect(() => {
+    const priceUpdates = state.itemIssues?.flatMap((issue) =>
+      issue.reason === "price_changed" &&
+      issue.currentPricePesewas !== undefined
+        ? [
+            {
+              productId: issue.productId,
+              pricePesewas: issue.currentPricePesewas,
+            },
+          ]
+        : [],
+    );
+
+    if (priceUpdates?.length) updateItemPrices(priceUpdates);
+  }, [state.itemIssues, updateItemPrices]);
 
   if (!hasHydrated) {
     return (
@@ -113,84 +161,13 @@ export function CheckoutPageContent({
 
   if (state.success && state.order) {
     return (
-      <div
-        role="status"
-        className="mx-auto max-w-2xl rounded-3xl border border-green-200 bg-card px-6 py-12 text-center shadow-sm sm:px-12 sm:py-16"
-      >
-        <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-green-100 text-green-700">
-          <CheckCircle2 className="size-9" aria-hidden="true" />
-        </span>
-
-        <p className="mt-6 font-navigation font-semibold text-brand">
+      <div role="status" className="mx-auto max-w-xl py-20 text-center">
+        <p className="font-navigation font-semibold text-brand">
           Order received
         </p>
-        <h1 className="mt-2 font-display text-4xl font-semibold sm:text-5xl">
-          Thank you for your order
+        <h1 className="mt-2 font-display text-4xl font-semibold">
+          Opening your confirmation…
         </h1>
-        <p className="mx-auto mt-4 max-w-lg leading-7 text-bakery-muted">
-          We have received your order and will contact you using the details
-          provided if we need any clarification.
-        </p>
-
-        <dl className="mx-auto mt-8 grid max-w-md gap-4 rounded-2xl bg-brand-accent/10 p-6 text-left sm:grid-cols-2">
-          <div>
-            <dt className="text-sm text-bakery-muted">Order number</dt>
-            <dd className="mt-1 break-all font-navigation font-semibold text-foreground">
-              {state.order.orderNumber}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-sm text-bakery-muted">Order total</dt>
-            <dd className="mt-1 font-navigation font-semibold text-foreground">
-              {formatPrice(state.order.totalPesewas)}
-            </dd>
-          </div>
-          <div className="sm:col-span-2">
-            <dt className="text-sm text-bakery-muted">Status</dt>
-            <dd className="mt-1 font-navigation font-semibold capitalize text-foreground">
-              {state.order.status.toLowerCase().replaceAll("_", " ")}
-            </dd>
-          </div>
-        </dl>
-
-        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-          {state.linkedToAccount && (
-            <Link
-              href={`/account/orders/${state.order.id}`}
-              className={cn(
-                buttonVariants({ size: "lg" }),
-                "bg-brand font-navigation text-surface hover:bg-brand/90",
-              )}
-            >
-              View order
-            </Link>
-          )}
-          <Link
-            href="/menu"
-            className={cn(
-              buttonVariants({
-                variant: state.linkedToAccount ? "outline" : "default",
-                size: "lg",
-              }),
-              cn(
-                "font-navigation",
-                !state.linkedToAccount &&
-                  "bg-brand text-surface hover:bg-brand/90",
-              ),
-            )}
-          >
-            Continue shopping
-          </Link>
-          <Link
-            href="/"
-            className={cn(
-              buttonVariants({ variant: "outline", size: "lg" }),
-              "font-navigation",
-            )}
-          >
-            Return home
-          </Link>
-        </div>
       </div>
     );
   }
@@ -238,10 +215,17 @@ export function CheckoutPageContent({
             items.map((item) => ({
               productId: item.productId,
               quantity: item.quantity,
+              clientUnitPricePesewas: item.pricePesewas,
             })),
           )}
         />
         <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+        {!storeSettings.acceptingOrders && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 lg:col-span-2" role="status">
+            <p className="font-navigation font-semibold">Ordering is currently paused</p>
+            <p className="mt-1">Please check back during our opening hours: {storeSettings.openingHours}</p>
+          </div>
+        )}
         <div className="space-y-8">
           <section className="rounded-2xl border bg-card p-6 sm:p-8">
             <h2 className="font-navigation text-xl font-semibold">
@@ -314,6 +298,7 @@ export function CheckoutPageContent({
                 checked={fulfillmentMethod === "PICKUP"}
                 onChange={() => setFulfillmentMethod("PICKUP")}
                 icon={<Store className="size-5" />}
+                disabled={!storeSettings.pickupEnabled}
               />
               <FulfillmentOption
                 value="DELIVERY"
@@ -322,11 +307,44 @@ export function CheckoutPageContent({
                 checked={fulfillmentMethod === "DELIVERY"}
                 onChange={chooseDelivery}
                 icon={<MapPin className="size-5" />}
+                disabled={
+                  !storeSettings.deliveryEnabled || deliveryZones.length === 0
+                }
               />
             </div>
 
             {fulfillmentMethod === "DELIVERY" && (
               <div className="mt-6 grid gap-5 border-t pt-6 sm:grid-cols-2">
+                <label className="text-sm font-medium sm:col-span-2">
+                  Delivery zone
+                  <select
+                    name="deliveryZoneId"
+                    value={selectedDeliveryZoneId}
+                    onChange={(event) =>
+                      setSelectedDeliveryZoneId(event.target.value)
+                    }
+                    required
+                    aria-invalid={Boolean(state.errors?.deliveryZoneId)}
+                    className={fieldClassName}
+                  >
+                    <option value="">Select your area</option>
+                    {deliveryZones.map((zone) => (
+                      <option key={zone.id} value={zone.id}>
+                        {zone.name} — {formatPrice(zone.deliveryFeePesewas)}
+                        {zone.minimumOrderPesewas != null
+                          ? ` (minimum ${formatPrice(zone.minimumOrderPesewas)})`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <FieldError errors={state.errors?.deliveryZoneId} />
+                  {deliveryZones.length === 0 && (
+                    <span className="mt-2 block text-sm text-red-700">
+                      Delivery is temporarily unavailable because no delivery
+                      areas are active.
+                    </span>
+                  )}
+                </label>
                 {addresses.length > 0 && (
                   <fieldset className="sm:col-span-2">
                     <legend className="text-sm font-medium">
@@ -458,7 +476,8 @@ export function CheckoutPageContent({
                   : "Cash on delivery"}
               </p>
               <p className="mt-1 text-sm text-bakery-muted">
-                No online payment is required for this order.
+                No online payment is required for this order. Pickup is from{" "}
+                {storeSettings.pickupAddress}.
               </p>
             </div>
           </section>
@@ -514,7 +533,9 @@ export function CheckoutPageContent({
               <dd className="text-right font-semibold">
                 {fulfillmentMethod === "PICKUP"
                   ? formatPrice(0)
-                  : "Confirmed with order"}
+                  : selectedDeliveryZone
+                    ? formatPrice(selectedDeliveryZone.deliveryFeePesewas)
+                    : "Select a zone"}
               </dd>
             </div>
           </dl>
@@ -524,13 +545,21 @@ export function CheckoutPageContent({
             <span>
               {fulfillmentMethod === "PICKUP"
                 ? formatPrice(subtotal)
-                : "Calculated on submit"}
+                : selectedDeliveryZone
+                  ? formatPrice(
+                      subtotal + selectedDeliveryZone.deliveryFeePesewas,
+                    )
+                  : "Select a zone"}
             </span>
           </div>
 
           <button
             type="submit"
-            disabled={pending}
+            disabled={
+              pending ||
+              !storeSettings.acceptingOrders ||
+              !selectedMethodAvailable
+            }
             className="mt-6 h-11 w-full cursor-pointer rounded-lg bg-brand px-4 font-navigation text-sm font-semibold text-surface transition-colors hover:bg-brand/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending ? "Checking order…" : "Place order"}
@@ -548,6 +577,29 @@ export function CheckoutPageContent({
             >
               {state.message}
             </p>
+          )}
+
+          {state.itemIssues && state.itemIssues.length > 0 && (
+            <ul className="mt-3 space-y-2 text-left text-sm" aria-live="polite">
+              {state.itemIssues.map((issue) => (
+                <li
+                  key={issue.productId}
+                  className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-950"
+                >
+                  <span className="font-semibold">{issue.productName}:</span>{" "}
+                  {issue.reason === "unavailable" ? (
+                    "no longer available"
+                  ) : (
+                    <>
+                      price changed from{" "}
+                      {formatPrice(issue.previousPricePesewas ?? 0)} to{" "}
+                      {formatPrice(issue.currentPricePesewas ?? 0)}. Your cart
+                      has been updated.
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
           )}
 
           <p className="mt-3 text-center text-xs leading-5 text-bakery-muted">
@@ -575,6 +627,7 @@ type FulfillmentOptionProps = {
   checked: boolean;
   onChange: () => void;
   icon: React.ReactNode;
+  disabled?: boolean;
 };
 
 function FulfillmentOption({
@@ -584,11 +637,13 @@ function FulfillmentOption({
   checked,
   onChange,
   icon,
+  disabled = false,
 }: FulfillmentOptionProps) {
   return (
     <label
       className={cn(
         "flex cursor-pointer gap-3 rounded-xl border p-4 transition-colors",
+        disabled && "cursor-not-allowed opacity-50",
         checked
           ? "border-brand bg-brand-accent/10"
           : "border-border hover:border-brand/40",
@@ -600,6 +655,7 @@ function FulfillmentOption({
         value={value}
         checked={checked}
         onChange={onChange}
+        disabled={disabled}
         className="mt-1 accent-[var(--brand)]"
       />
       <span className="text-brand">{icon}</span>

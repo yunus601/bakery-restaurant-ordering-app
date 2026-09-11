@@ -19,6 +19,7 @@ export type CheckoutActionState = {
     totalPesewas: number;
   };
   linkedToAccount?: boolean;
+  itemIssues?: OrderError["itemIssues"];
 };
 
 function parseItems(value: FormDataEntryValue | null): unknown {
@@ -49,6 +50,7 @@ export async function createOrderAction(
     deliveryCity: formData.get("deliveryCity"),
     deliveryRegion: formData.get("deliveryRegion"),
     deliveryDirections: formData.get("deliveryDirections"),
+    deliveryZoneId: formData.get("deliveryZoneId"),
 
     items: parseItems(formData.get("items")),
     idempotencyKey: formData.get("idempotencyKey"),
@@ -86,14 +88,20 @@ export async function createOrderAction(
     return {
       success: true,
       message: "Your order has been placed successfully.",
-      order,
-      linkedToAccount: Boolean(user),
+      order: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        totalPesewas: order.totalPesewas,
+      },
+      linkedToAccount: Boolean(order.userId),
     };
   } catch (error) {
     if (error instanceof OrderError) {
       return {
         success: false,
         message: error.message,
+        itemIssues: error.itemIssues,
       };
     }
 

@@ -9,6 +9,8 @@ import { auth } from "@clerk/nextjs/server";
 
 import { requireUser } from "@/lib/auth/require-user";
 import { getCustomerAddresses } from "@/lib/queries/customer-addresses";
+import { getActiveDeliveryZones } from "@/lib/queries/delivery-zones";
+import { getStoreSettings } from "@/lib/queries/store-settings";
 
 export const metadata: Metadata = {
   title: "Checkout | Confirm Bakery",
@@ -30,8 +32,13 @@ export default async function CheckoutPage() {
       }
     : null;
 
-  const addresses = user
-    ? (await getCustomerAddresses()).map(
+  const [storedAddresses, storeSettings, deliveryZones] = await Promise.all([
+    user ? getCustomerAddresses() : Promise.resolve([]),
+    getStoreSettings(),
+    getActiveDeliveryZones(),
+  ]);
+
+  const addresses = storedAddresses.map(
         ({
           id,
           label,
@@ -53,8 +60,7 @@ export default async function CheckoutPage() {
           directions,
           isDefault,
         }),
-      )
-    : [];
+      );
 
   return (
     <main className="min-h-screen bg-background">
@@ -67,6 +73,8 @@ export default async function CheckoutPage() {
           idempotencyKey={idempotencyKey}
           customer={customer}
           addresses={addresses}
+          storeSettings={storeSettings}
+          deliveryZones={deliveryZones}
         />
       </section>
 

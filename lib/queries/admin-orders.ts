@@ -5,6 +5,13 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 20;
+const actionableStatuses: OrderStatus[] = [
+  "PLACED",
+  "CONFIRMED",
+  "PREPARING",
+  "READY",
+  "OUT_FOR_DELIVERY",
+];
 
 type GetAdminOrdersInput = {
   page: number;
@@ -47,7 +54,7 @@ export async function getAdminOrders({
       : {}),
   };
 
-  const [orders, totalItems] = await Promise.all([
+  const [orders, totalItems, actionableStatusCounts] = await Promise.all([
     prisma.order.findMany({
       where,
       orderBy: {
@@ -74,9 +81,26 @@ export async function getAdminOrders({
       },
     }),
     prisma.order.count({ where }),
+    prisma.order.groupBy({
+      by: ["status"],
+      where: {
+        status: { in: actionableStatuses },
+      },
+      _count: { _all: true },
+    }),
   ]);
+
+  const actionableCounts = Object.fromEntries(
+    actionableStatuses.map((orderStatus) => [orderStatus, 0]),
+  ) as Record<(typeof actionableStatuses)[number], number>;
+
+  for (const count of actionableStatusCounts) {
+    actionableCounts[count.status] = count._count._all;
+  }
+
   return {
     orders,
+    actionableCounts,
     pagination: {
       page: safePage,
       pageSize: PAGE_SIZE,
@@ -100,6 +124,7 @@ export async function getAdminOrderById(orderId: string) {
       customerEmail: true,
       customerPhone: true,
       customerNote: true,
+      cancellationReason: true,
       fulfillmentMethod: true,
       paymentMethod: true,
       paymentStatus: true,
@@ -108,6 +133,7 @@ export async function getAdminOrderById(orderId: string) {
       deliveryCity: true,
       deliveryRegion: true,
       deliveryDirections: true,
+      deliveryZoneName: true,
       subtotalPesewas: true,
       deliveryFeePesewas: true,
       totalPesewas: true,
@@ -130,6 +156,24 @@ export async function getAdminOrderById(orderId: string) {
           unitPricePesewas: true,
           quantity: true,
           lineTotalPesewas: true,
+        },
+      },
+      events: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          type: true,
+          fromValue: true,
+          toValue: true,
+          reason: true,
+          createdAt: true,
+          actor: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
         },
       },
     },

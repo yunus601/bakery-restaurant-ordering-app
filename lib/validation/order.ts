@@ -2,6 +2,7 @@ import { z } from "zod";
 export const checkoutItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.number().int().min(1).max(99),
+  clientUnitPricePesewas: z.number().int().nonnegative(),
 });
 
 const checkoutBaseSchema = z.object({
@@ -28,6 +29,7 @@ export const checkoutSchema = z.discriminatedUnion("fulfillmentMethod", [
 
   checkoutBaseSchema.extend({
     fulfillmentMethod: z.literal("DELIVERY"),
+    deliveryZoneId: z.string().min(1, "Select a delivery zone"),
     deliveryAddressLine: z.string().trim().min(5).max(200),
     deliveryCity: z.string().trim().min(2).max(100),
     deliveryRegion: z.string().trim().max(100).optional(),

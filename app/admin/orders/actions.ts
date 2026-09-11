@@ -9,10 +9,27 @@ import { canTransitionPaymentStatus } from "@/lib/orders/payment-transition";
 import { canTransitionOrderStatus } from "@/lib/orders/status-transition";
 import { prisma } from "@/lib/prisma";
 
-const updateOrderStatusSchema = z.object({
-  orderId: z.string().min(1),
-  nextStatus: z.enum(OrderStatus),
-});
+const updateOrderStatusSchema = z
+  .object({
+    orderId: z.string().min(1),
+    nextStatus: z.enum(OrderStatus),
+    cancellationReason: z.preprocess(
+      (value) =>
+        value === null || (typeof value === "string" && value.trim() === "")
+          ? undefined
+          : value,
+      z.string().trim().min(3).max(500).optional(),
+    ),
+  })
+  .superRefine((input, context) => {
+    if (input.nextStatus === "CANCELLED" && !input.cancellationReason) {
+      context.addIssue({
+        code: "custom",
+        path: ["cancellationReason"],
+        message: "Enter a reason for cancelling this order.",
+      });
+    }
+  });
 
 const updatePaymentStatusSchema = z.object({
   orderId: z.string().min(1),
@@ -22,6 +39,9 @@ const updatePaymentStatusSchema = z.object({
 export type UpdateOrderStatusState = {
   success: boolean;
   message?: string;
+  errors?: {
+    cancellationReason?: string[];
+  };
 };
 
 export type UpdatePaymentStatusState = {
@@ -33,21 +53,23 @@ export async function updateOrderStatusAction(
   _previousState: UpdateOrderStatusState,
   formData: FormData,
 ): Promise<UpdateOrderStatusState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const parsed = updateOrderStatusSchema.safeParse({
     orderId: formData.get("orderId"),
     nextStatus: formData.get("nextStatus"),
+    cancellationReason: formData.get("cancellationReason"),
   });
 
   if (!parsed.success) {
     return {
       success: false,
-      message: "Select a valid order status.",
+      message: "Please correct the status update.",
+      errors: parsed.error.flatten().fieldErrors,
     };
   }
 
-  const { orderId, nextStatus } = parsed.data;
+  const { orderId, nextStatus, cancellationReason } = parsed.data;
 
   try {
     const order = await prisma.order.findUnique({
@@ -87,23 +109,42 @@ export async function updateOrderStatusAction(
     }
 
     const now = new Date();
-    const updateResult = await prisma.order.updateMany({
-      where: {
-        id: orderId,
-        status: order.status,
-        ...(nextStatus === "COMPLETED"
-          ? { paymentStatus: "PAID" as const }
-          : {}),
-      },
-      data: {
-        status: nextStatus,
-        confirmedAt: nextStatus === "CONFIRMED" ? now : undefined,
-        completedAt: nextStatus === "COMPLETED" ? now : undefined,
-        cancelledAt: nextStatus === "CANCELLED" ? now : undefined,
-      },
+    const changed = await prisma.$transaction(async (tx) => {
+      const updateResult = await tx.order.updateMany({
+        where: {
+          id: orderId,
+          status: order.status,
+          ...(nextStatus === "COMPLETED"
+            ? { paymentStatus: "PAID" as const }
+            : {}),
+        },
+        data: {
+          status: nextStatus,
+          confirmedAt: nextStatus === "CONFIRMED" ? now : undefined,
+          completedAt: nextStatus === "COMPLETED" ? now : undefined,
+          cancelledAt: nextStatus === "CANCELLED" ? now : undefined,
+          cancellationReason:
+            nextStatus === "CANCELLED" ? cancellationReason : undefined,
+        },
+      });
+
+      if (updateResult.count !== 1) return false;
+
+      await tx.orderEvent.create({
+        data: {
+          orderId,
+          actorId: admin.id,
+          type: "STATUS_CHANGED",
+          fromValue: order.status,
+          toValue: nextStatus,
+          reason: nextStatus === "CANCELLED" ? cancellationReason : null,
+        },
+      });
+
+      return true;
     });
 
-    if (updateResult.count !== 1) {
+    if (!changed) {
       return {
         success: false,
         message:
@@ -133,7 +174,7 @@ export async function updatePaymentStatusAction(
   _previousState: UpdatePaymentStatusState,
   formData: FormData,
 ): Promise<UpdatePaymentStatusState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const parsed = updatePaymentStatusSchema.safeParse({
     orderId: formData.get("orderId"),
@@ -180,19 +221,35 @@ export async function updatePaymentStatusAction(
     }
 
     const now = new Date();
-    const updateResult = await prisma.order.updateMany({
-      where: {
-        id: orderId,
-        paymentStatus: order.paymentStatus,
-      },
-      data: {
-        paymentStatus: nextStatus,
-        paidAt: nextStatus === "PAID" ? now : undefined,
-        refundedAt: nextStatus === "REFUNDED" ? now : undefined,
-      },
+    const changed = await prisma.$transaction(async (tx) => {
+      const updateResult = await tx.order.updateMany({
+        where: {
+          id: orderId,
+          paymentStatus: order.paymentStatus,
+        },
+        data: {
+          paymentStatus: nextStatus,
+          paidAt: nextStatus === "PAID" ? now : undefined,
+          refundedAt: nextStatus === "REFUNDED" ? now : undefined,
+        },
+      });
+
+      if (updateResult.count !== 1) return false;
+
+      await tx.orderEvent.create({
+        data: {
+          orderId,
+          actorId: admin.id,
+          type: "PAYMENT_STATUS_CHANGED",
+          fromValue: order.paymentStatus,
+          toValue: nextStatus,
+        },
+      });
+
+      return true;
     });
 
-    if (updateResult.count !== 1) {
+    if (!changed) {
       return {
         success: false,
         message:
